@@ -1,0 +1,11 @@
+[project]
+name = "tinyrenderer"
+version = "0.0.1"
+description = "Python port of https://haqr.eu/tinyrenderer/"
+readme = "../README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "friendly>=0.7.21",
+    "icecream>=2.2.0",
+    "numpy>=2.5.1",
+]
