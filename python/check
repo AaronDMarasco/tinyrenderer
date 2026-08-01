@@ -1,0 +1,3 @@
+#!/bin/bash
+uv --preview-features format format -- --line-length 120
+ruff check .
