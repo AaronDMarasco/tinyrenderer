@@ -1,14 +1,10 @@
 from __future__ import annotations
+
 from enum import IntEnum
 from typing import BinaryIO, Final, Self, TypeAlias
 
-from icecream import ic  # DEBUG
-from numpy import dtype
-import friendly  # DEBUG
 import numpy as np
-# import numpy.typing as npt
-
-friendly.install()  # DEBUG
+from numpy import dtype
 
 # Some C++ cross-referencing for simplicity
 uint8_t: TypeAlias = np.uint8
@@ -43,8 +39,10 @@ class TGAColor:
         ]
     )
 
-    def __init__(self: Self, b: int = 0, g: int = 0, r: int = 0, a: int = 0, bpp: uint8_t = uint8_t(4)) -> None:
+    def __init__(self: Self, b: int = 0, g: int = 0, r: int = 0, a: int = 0, bpp: uint8_t | None = None) -> None:
         self.bgra = np.array([(b, g, r, a)], dtype=TGAColor.bgra_t)
+        if bpp is None:
+            bpp = uint8_t(4)
         self.bytespp: uint8_t = bpp
         assert bpp == 4, "Not sure if this is valid?"
 
@@ -68,6 +66,9 @@ class TGAColor:
         if not isinstance(other, TGAColor):
             return NotImplemented
         return self.bgra == other.bgra and self.bytespp == other.bytespp
+
+    def __repr__(self: Self) -> str:
+        return f"TGAColor({self[0]}, {self[1]}, {self[2]}, {self[3]}, {self.bytespp})"
 
 
 class TGAImage:
@@ -101,21 +102,10 @@ class TGAImage:
         self.width = w
         self.height = h
         self.bpp: uint8_t = uint8_t(bpp)
-        self.data: list[uint8_t] = [uint8_t(0)] * (w * h * bpp)  # TODO: Make np.array or np.ndarray? Of TGAColor?
         self.npdata = np.full(shape=(h, w), fill_value=TGAColor())
 
         if c is not None:
             self.npdata = np.full(shape=(h, w), fill_value=c)
-
-            ic(c)
-            # ic(self.data)
-            ic(self.npdata)
-            for j in range(h):
-                for i in range(w):
-                    # self.set(i, j, c)
-                    pass
-
-        # raise NotImplementedError
 
     def read_tga_file(self: Self, filename: str) -> bool:
         raise NotImplementedError
@@ -124,31 +114,20 @@ class TGAImage:
         raise NotImplementedError
 
     def flip_horizontally(self: Self) -> None:
-        raise NotImplementedError
+        self.npdata = np.fliplr(self.npdata)
 
     def flip_vertically(self: Self) -> None:
-        raise NotImplementedError
+        self.npdata = np.flipud(self.npdata)
 
     def get(self: Self, x: int, y: int) -> TGAColor:
         # TODO: Test this compared to what the C++ library does?
-        if (len(self.data) == 0) or x < 0 or y < 0 or x >= self.width or y >= self.height:
-            raise IndexError
-        ret = TGAColor(bpp=self.bpp)
-        idx = (x + y * self.width) * self.bpp
-        for i in range(self.bpp, 0, -1):
-            ret.bgra[i] = self.data[idx + i]
-        return ret
+        return self.npdata[y, x]
 
     def set(self: Self, x: int, y: int, c: TGAColor) -> None:
-        raise NotImplementedError
+        self.npdata[y, x] = c
 
     def load_rle_data(self: Self, in_: BinaryIO) -> bool:
         raise NotImplementedError
 
     def unload_rle_data(self: Self, out_: BinaryIO) -> bool:
         raise NotImplementedError
-
-
-if __name__ == "__main__":
-    # print(TGAImage(h=5, w=3, c=TGAColor(1, 2, 3, 4)).npdata)
-    pass
