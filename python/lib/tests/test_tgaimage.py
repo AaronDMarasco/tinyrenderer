@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable
+from pathlib import Path
 from typing import Final, Self
 
 import friendly
@@ -194,3 +195,24 @@ class TestTGAImage:
                 c = TGAColor(v, v, v, v)
                 golden[col, row] = c
         assert np.array_equal(uut.npdata, golden)
+
+    def test_bad_file(self: Self) -> None:
+        uut = TGAImage()
+        with pytest.raises(OSError):
+            uut.read_tga_file("/abc.tga")
+
+    @staticmethod
+    def skip_missing(tga_file: Path) -> None:
+        if not tga_file.is_file():
+            pytest.skip(f"The required file ({tga_file}) was not found - have you installed Steam?")
+
+    def test_good_file(self: Self) -> None:
+        uut = TGAImage()
+        test_file = Path(__file__).parent / "../../../obj/grid.tga"
+        test_file = Path(__file__).parent / "../.." / "../obj/diablo3_pose/diablo3_pose_nm.tga"
+        # test_file = Path("~/.steam/debian-installation/public/steam_working1.tga").expanduser().resolve()
+        # test_file = Path("~/.steam/debian-installation/public/c1.tga").expanduser().resolve()
+        self.skip_missing(test_file)
+        uut.read_tga_file(test_file)
+        # TODO: More tests here
+
