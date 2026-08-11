@@ -119,7 +119,7 @@ class TestTGAColor:
     @given(b=valid_uint8_t, g=valid_uint8_t, r=valid_uint8_t, a=valid_uint8_t)
     def test_bgra_hypothesis(self: Self, b: int, g: int, r: int, a: int) -> None:
         uut = TGAColor(b, g, r, a)
-        assert uut.bgra.tolist() == [(b, g, r, a)]
+        assert uut.data == [b.to_bytes(1), g.to_bytes(1), r.to_bytes(1), a.to_bytes(1)]
         assert uut[0] == b
         assert uut[1] == g
         assert uut[2] == r
@@ -270,13 +270,23 @@ class TestTGAImage:
         if not tga_file.is_file():
             pytest.skip(f"The required file ({tga_file}) was not found - have you installed Steam?")
 
-    def test_good_file(self: Self) -> None:
-        uut = TGAImage()
-        test_file = Path(__file__).parent / "../../../obj/grid.tga"
-        test_file = Path(__file__).parent / "../.." / "../obj/diablo3_pose/diablo3_pose_nm.tga"
-        # test_file = Path("~/.steam/debian-installation/public/steam_working1.tga").expanduser().resolve()
-        # test_file = Path("~/.steam/debian-installation/public/c1.tga").expanduser().resolve()
-        self.skip_missing(test_file)
-        uut.read_tga_file(test_file)
-        # TODO: More tests here
+    @staticmethod
+    def count_unique_colors(uut: TGAImage) -> int:
+        uniques = set(uut.npdata.flat)
+        count = len(uniques)
+        return count
 
+    @staticmethod
+    def check_file(test_file: GoldenFile) -> None:
+        TestTGAImage.skip_missing(test_file.path)
+        uut = TGAImage.read_tga_file(test_file.path)
+        assert uut.width == test_file.width, f"Expected width={test_file.width}, got {uut.width}"
+        assert uut.height == test_file.height, f"Expected height={test_file.height}, got {uut.height}"
+        assert (count := TestTGAImage.count_unique_colors(uut)) == test_file.colors, (
+            f"Expected {test_file.colors} colors, got {count}"
+        )
+
+    def test_good_file_matrix(self: Self, subtests: pytest.Subtests) -> None:
+        for f in TEST_FILES:
+            with subtests.test(msg=f"{f.path.name}: {f.width}x{f.height} {f.color_type} RLE={f.RLE}"):
+                self.check_file(f)

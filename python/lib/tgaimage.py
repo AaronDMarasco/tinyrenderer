@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from itertools import batched
 from pathlib import Path
-from typing import BinaryIO, Final, Self, TypeAlias, TypeVar
+from typing import Final, Self, TypeAlias, TypeVar, overload
 from warnings import warn
 
 import numpy as np
@@ -40,65 +40,53 @@ TGAHeader: Final[dtype] = dtype(
     ]
 )
 
-bgra_t: Final[dtype] = dtype(
-    [
-        ("b", uint8_t),
-        ("g", uint8_t),
-        ("r", uint8_t),
-        ("a", uint8_t),
-    ]
-)
-
 
 @dataclass(slots=True)
 class TGAColor:
     # TODO: Still working. Binary dump representation.
-    bgra: np.ndarray
-    bpp: uint8_t
+    data: list[bytes]
     bytespp: uint8_t
 
-    def __init__(self: Self, b: int = 0, g: int = 0, r: int = 0, a: int = 0, bpp: uint8_t | None = None) -> None:
-        self.bgra = np.array([(b, g, r, a)], dtype=bgra_t)
+    @overload
+    def __init__(self: Self, b: int = 0, g: int = 0, r: int = 0, a: int = 0, bpp: uint8_t | None = None) -> None: ...
+    @overload
+    def __init__(self: Self, b: bytes, g: bytes, r: bytes, a: bytes, bpp: uint8_t | None = None) -> None: ...
+
+    def __init__(self: Self, b=0, g=0, r=0, a=0, bpp: uint8_t | None = None) -> None:
         if bpp is None:
             bpp = uint8_t(4)
+        if isinstance(b, int):
+            assert isinstance(g, int) and isinstance(r, int) and isinstance(a, int), "Bad call!"
+            self.data = [b.to_bytes(1), g.to_bytes(1), r.to_bytes(1), a.to_bytes(1)][:bpp]
+        elif isinstance(b, bytes):
+            assert isinstance(g, bytes) and isinstance(r, bytes) and isinstance(a, bytes), "Bad call!"
+            self.data = [b, g, r, a][:bpp]
+        else:
+            raise ValueError("Bad call types!")
         self.bytespp: uint8_t = bpp
+        assert len(self.data) == bpp, "Invalid internal error with bpp?"
 
     def __getitem__(self: Self, idx: int) -> uint8_t:
-        return self.bgra[0][idx]  # Let numpy handle indexing
+        return uint8_t(int.from_bytes(self.data[idx]))
 
     def __setitem__(self: Self, idx: int, val: uint8_t) -> None:
-        match idx:
-            case 0:
-                self.bgra[0]["b"] = val
-            case 1:
-                self.bgra[0]["g"] = val
-            case 2:
-                self.bgra[0]["r"] = val
-            case 3:
-                self.bgra[0]["a"] = val
-            case _:
-                raise IndexError("Only allow 0-3")
-
-    def __eq__(self: Self, other: object) -> bool:
-        if not isinstance(other, TGAColor):
-            return NotImplemented
-        return hash(self) == hash(other)
+        self.data[idx] = int(val).to_bytes(1)
 
     def __hash__(self: Self) -> int:
-        return hash((tuple(self.bgra.tolist()), self.bytespp))
+        return hash((self.bytespp, tuple(self.data)))
 
     def __repr__(self: Self) -> str:
-        return f"TGAColor({self[0]}, {self[1]}, {self[2]}, {self[3]}, {self.bytespp})"
+        return f"TGAColor(b={self[0]}, g={self[1]}, r={self[2]}, a={self[3]}, bpp={self.bytespp})"
 
     @staticmethod
-    def from_raw(raw_data: bytes, *, bpp: int) -> list[TGAColor]:
-        if (ld := len(raw_data)) % bpp:
+    def from_raw(data: bytes, *, bpp: int) -> list[TGAColor]:
+        if (ld := len(data)) % bpp:
             warn(f"Possibly bad read of {ld} bytes at {bpp} bpp = remainder {ld % bpp}", stacklevel=2)
-        data = [int(v) for v in raw_data]
+
         if bpp == 1:  # Grayscale
-            return [TGAColor(b=v, g=v, r=v, a=255, bpp=uint8_t(1)) for v in data]
+            return [TGAColor(b=v, bpp=uint8_t(1)) for v in data]
         if bpp == 3:  # RGB
-            return [TGAColor(b=b, g=g, r=r, a=255, bpp=uint8_t(3)) for (b, g, r) in batched(data, 3)]
+            return [TGAColor(b=b, g=g, r=r, bpp=uint8_t(3)) for (b, g, r) in batched(data, 3)]
         if bpp == 4:  # RGBA
             return [TGAColor(b=b, g=g, r=r, a=a, bpp=uint8_t(4)) for (b, g, r, a) in batched(data, 4)]
         raise NotImplementedError(f"Cannot handle {bpp} BPP")
@@ -108,27 +96,6 @@ TI = TypeVar("TI", bound="TGAImage")
 
 
 class TGAImage:
-    """
-        TODO: Everything
-        enum Format { GRAYSCALE=1, RGB=3, RGBA=4 };
-        TGAImage() = default;
-        TGAImage(const int w, const int h, const int bpp, TGAColor c = {});
-        bool  read_tga_file(const std::string filename);
-        bool write_tga_file(const std::string filename, const bool vflip=true, const bool rle=true) const;
-        void flip_horizontally();
-        void flip_vertically();
-        TGAColor get(const int x, const int y) const;
-        void set(const int x, const int y, const TGAColor &c);
-        int width()  const;
-        int height() const;
-    private:
-        bool   load_rle_data(std::ifstream &in);
-        bool unload_rle_data(std::ofstream &out) const;
-        int w = 0, h = 0;
-        std::uint8_t bpp = 0;
-        std::vector<std::uint8_t> data = {};
-    """
-
     class Format(IntEnum):
         GRAYSCALE = 1
         RGB = 3
@@ -159,7 +126,6 @@ class TGAImage:
         assert h > 0, f"Interpreted height {h} is invalid!"
         assert bpp in cls.FORMAT_VALS, f"Interpreted bits-per-pixel {bpp} is invalid!"
         assert dtc in {2, 3, 10, 11}, f"Unknown file format '{dtc}'!"
-        # assert bpp == 4, f"Not sure if non bpp=4 works (bpp={bpp})?"
         res = cls(w=int(w), h=int(h), bpp=bpp)
         # Read the data without the header
         raw_data = Path(filename).read_bytes()[TGAHeader.itemsize :]
@@ -168,8 +134,8 @@ class TGAImage:
             raw_data = res.load_rle_data(raw_data)
         if dtc in {2, 3}:
             # Not RLE data
-            # Truncate it
             # trailing = raw_data[data_size:]
+            # Truncate it
             raw_data = raw_data[:data_size]
         ic(len(raw_data), data_size)
         pixels = [x for x in grouper(TGAColor.from_raw(raw_data, bpp=bpp), w)]
@@ -204,7 +170,6 @@ class TGAImage:
         current_pixel: int = 0
         current_byte: int = 0
         while current_pixel < pixel_count:
-            # ic(current_pixel, pixel_count, [hex(x) for x in in_[current_byte : current_byte + int(self.bpp)]])
             chunk_header = in_[current_byte]
             current_byte += 1
             if chunk_header < 128:
