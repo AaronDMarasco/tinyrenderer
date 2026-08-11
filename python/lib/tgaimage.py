@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import IntEnum
 from itertools import batched
 from pathlib import Path
@@ -39,20 +40,25 @@ TGAHeader: Final[dtype] = dtype(
     ]
 )
 
+bgra_t: Final[dtype] = dtype(
+    [
+        ("b", uint8_t),
+        ("g", uint8_t),
+        ("r", uint8_t),
+        ("a", uint8_t),
+    ]
+)
 
+
+@dataclass(slots=True)
 class TGAColor:
-    # TODO: Still working. Binary dump representation. Tests (hypothesis)!
-    bgra_t: Final[dtype] = dtype(
-        [
-            ("b", uint8_t),
-            ("g", uint8_t),
-            ("r", uint8_t),
-            ("a", uint8_t),
-        ]
-    )
+    # TODO: Still working. Binary dump representation.
+    bgra: np.ndarray
+    bpp: uint8_t
+    bytespp: uint8_t
 
     def __init__(self: Self, b: int = 0, g: int = 0, r: int = 0, a: int = 0, bpp: uint8_t | None = None) -> None:
-        self.bgra = np.array([(b, g, r, a)], dtype=TGAColor.bgra_t)
+        self.bgra = np.array([(b, g, r, a)], dtype=bgra_t)
         if bpp is None:
             bpp = uint8_t(4)
         self.bytespp: uint8_t = bpp
@@ -76,7 +82,10 @@ class TGAColor:
     def __eq__(self: Self, other: object) -> bool:
         if not isinstance(other, TGAColor):
             return NotImplemented
-        return self.bgra == other.bgra and self.bytespp == other.bytespp
+        return hash(self) == hash(other)
+
+    def __hash__(self: Self) -> int:
+        return hash((tuple(self.bgra.tolist()), self.bytespp))
 
     def __repr__(self: Self) -> str:
         return f"TGAColor({self[0]}, {self[1]}, {self[2]}, {self[3]}, {self.bytespp})"
@@ -150,24 +159,25 @@ class TGAImage:
         assert h > 0, f"Interpreted height {h} is invalid!"
         assert bpp in cls.FORMAT_VALS, f"Interpreted bits-per-pixel {bpp} is invalid!"
         assert dtc in {2, 3, 10, 11}, f"Unknown file format '{dtc}'!"
+        # assert bpp == 4, f"Not sure if non bpp=4 works (bpp={bpp})?"
         res = cls(w=int(w), h=int(h), bpp=bpp)
         # Read the data without the header
         raw_data = Path(filename).read_bytes()[TGAHeader.itemsize :]
         if dtc in {10, 11}:
+            # RLE data
             raw_data = res.load_rle_data(raw_data)
         if dtc in {2, 3}:
+            # Not RLE data
             # Truncate it
-            trailing = raw_data[data_size:]
+            # trailing = raw_data[data_size:]
             raw_data = raw_data[:data_size]
         ic(len(raw_data), data_size)
         pixels = [x for x in grouper(TGAColor.from_raw(raw_data, bpp=bpp), w)]
         res.npdata = np.array(pixels)
         assert res.npdata.shape == (h, w), f"Re-shaping error? {(h, w)=} vs. {res.npdata.shape}"
         if not (imgd & 0x20):
-            # raise ValueError("V FLIP")
             res.flip_vertically()
         if imgd & 0x10:
-            raise ValueError("H FLIP")
             res.flip_horizontally()
         return res
 
@@ -190,17 +200,15 @@ class TGAImage:
     def load_rle_data(self: Self, in_: bytes) -> bytes:
         # See https://www.fileformat.info/format/tga/egff.htm
         pixel_count: Final[int] = self.width * self.height
-        # raw_data: bytes = b"\0" * pixel_count
         raw_data: list[bytes] = []
         current_pixel: int = 0
         current_byte: int = 0
         while current_pixel < pixel_count:
             # ic(current_pixel, pixel_count, [hex(x) for x in in_[current_byte : current_byte + int(self.bpp)]])
-            # assert in_[current_byte] & 0x80, "Doesn't seem to be RLE properly encoded?"
             chunk_header = in_[current_byte]
             current_byte += 1
             if chunk_header < 128:
-                # "Raw" pixels - just read them out
+                # "Raw" pixels - just read them out (up to 127)
                 chunk_header += 1
                 for _ in range(chunk_header):
                     raw_data.append(in_[current_byte : current_byte + int(self.bpp)])
@@ -212,9 +220,6 @@ class TGAImage:
                 raw_data.extend(in_[current_byte : current_byte + int(self.bpp)] for _ in range(chunk_header))
                 current_byte += int(self.bpp)
                 current_pixel += chunk_header
-        # ic(len(raw_data), current_pixel, current_byte, len(in_), self.width, self.height)
-
-        # raise NotImplementedError
         return b"".join(raw_data)
 
     def unload_rle_data(self: Self, out_: bytes) -> bool:

@@ -4,18 +4,82 @@ from __future__ import annotations
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Final, Self
+from typing import Final, NamedTuple, Self
 
 import friendly
 import numpy as np
 import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
+from icecream import ic
 
 from ..tgaimage import TGAColor, TGAImage, uint8_t
 
 valid_uint8_t = st.integers(0, 255)
 friendly.install()
+
+
+class GoldenFile(NamedTuple):
+    path: Path
+    color_type: str
+    RLE: bool
+    colors: int
+    height: int
+    width: int
+
+
+TEST_FILES: Final[tuple[GoldenFile, ...]] = (
+    GoldenFile(
+        Path("~/.steam/debian-installation/public/c1.tga").expanduser().resolve(),
+        "RGB",
+        RLE=False,
+        colors=275,
+        height=46,
+        width=70,
+    ),
+    # For icon_close_hover, XnView MP says 2 colors, but really 27 because there are 26 blacks
+    # with different alpha values:
+    GoldenFile(
+        Path("~/.steam/debian-installation/graphics/broadcast/icon_close_hover.tga").expanduser().resolve(),
+        "RGBA",
+        RLE=False,
+        colors=27,
+        height=17,
+        width=17,
+    ),
+    GoldenFile(
+        Path(Path(__file__).parent / "../.." / "../obj/floor_spec.tga").resolve(),
+        "RGB",
+        RLE=True,
+        colors=1,
+        height=1,
+        width=1,
+    ),
+    GoldenFile(
+        Path(Path(__file__).parent / "../.." / "../obj/boggie/body_spec.tga").resolve(),
+        "RGB",
+        RLE=True,
+        colors=4035,
+        height=2048,
+        width=2048,
+    ),
+    GoldenFile(
+        Path(Path(__file__).parent / "../.." / "../obj/african_head/african_head_eye_inner_spec.tga").resolve(),
+        "RGBA",
+        RLE=True,
+        colors=5651,
+        height=256,
+        width=256,
+    ),
+    GoldenFile(
+        Path(Path(__file__).parent / "../.." / "../obj/african_head/african_head_spec.tga").resolve(),
+        "Mono",
+        RLE=True,
+        colors=166,
+        height=1024,
+        width=1024,
+    ),
+)
 
 
 class TestTGAColor:
