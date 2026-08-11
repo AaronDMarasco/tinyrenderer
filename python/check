@@ -4,4 +4,9 @@ uv --preview-features format format -- --line-length 120
 ruff check .
 uv run mypy .
 uv run lib/tgaimage.py
-uv run pytest -vv
+if true; then
+    uv run pytest -vv # --durations=5
+else
+    uv run python -m cProfile -o out.prof .venv/bin/pytest -vv
+    uv run snakeviz out.prof
+fi
