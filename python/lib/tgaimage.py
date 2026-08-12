@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import IntEnum
+from io import BytesIO
 from itertools import batched
 from pathlib import Path
 from typing import Final, Self, TypeAlias, TypeVar, overload
 from warnings import warn
 
 import numpy as np
-from icecream import ic
 from numpy import dtype
 
 # Some C++ cross-referencing for simplicity
@@ -43,9 +43,7 @@ TGAHeader: Final[dtype] = dtype(
 
 @dataclass(slots=True)
 class TGAColor:
-    # TODO: Still working. Binary dump representation.
     data: list[bytes]
-    bytespp: uint8_t
 
     @overload
     def __init__(self: Self, b: int = 0, g: int = 0, r: int = 0, a: int = 0, bpp: uint8_t | None = None) -> None: ...
@@ -55,6 +53,7 @@ class TGAColor:
     def __init__(self: Self, b=0, g=0, r=0, a=0, bpp: uint8_t | None = None) -> None:
         if bpp is None:
             bpp = uint8_t(4)
+        assert 0 < bpp <= 4, f"Invalid BPP={bpp}"
         if isinstance(b, int):
             assert isinstance(g, int) and isinstance(r, int) and isinstance(a, int), "Bad call!"
             self.data = [b.to_bytes(1), g.to_bytes(1), r.to_bytes(1), a.to_bytes(1)][:bpp]
@@ -63,8 +62,11 @@ class TGAColor:
             self.data = [b, g, r, a][:bpp]
         else:
             raise ValueError("Bad call types!")
-        self.bytespp: uint8_t = bpp
         assert len(self.data) == bpp, "Invalid internal error with bpp?"
+
+    @property
+    def bytespp(self: Self) -> int:
+        return len(self.data)
 
     def __getitem__(self: Self, idx: int) -> uint8_t:
         return uint8_t(int.from_bytes(self.data[idx]))
@@ -72,8 +74,11 @@ class TGAColor:
     def __setitem__(self: Self, idx: int, val: uint8_t) -> None:
         self.data[idx] = int(val).to_bytes(1)
 
+    def __bytes__(self: Self) -> bytes:
+        return b"".join(self.data)
+
     def __hash__(self: Self) -> int:
-        return hash((self.bytespp, tuple(self.data)))
+        return hash(tuple(self.data))
 
     def __repr__(self: Self) -> str:
         return f"TGAColor(b={self[0]}, g={self[1]}, r={self[2]}, a={self[3]}, bpp={self.bytespp})"
@@ -115,7 +120,6 @@ class TGAImage:
     @classmethod
     def read_tga_file(cls: type[TI], filename: str | Path) -> TI:
         header = np.fromfile(filename, dtype=TGAHeader, count=1)[0]
-        # print(header)
         w = header["width"]
         h = header["height"]
         bpp = int(header["bitsperpixel"]) >> 3
@@ -137,7 +141,6 @@ class TGAImage:
             # trailing = raw_data[data_size:]
             # Truncate it
             raw_data = raw_data[:data_size]
-        ic(len(raw_data), data_size)
         pixels = [x for x in grouper(TGAColor.from_raw(raw_data, bpp=bpp), w)]
         res.npdata = np.array(pixels)
         assert res.npdata.shape == (h, w), f"Re-shaping error? {(h, w)=} vs. {res.npdata.shape}"
@@ -166,26 +169,55 @@ class TGAImage:
     def load_rle_data(self: Self, in_: bytes) -> bytes:
         # See https://www.fileformat.info/format/tga/egff.htm
         pixel_count: Final[int] = self.width * self.height
-        raw_data: list[bytes] = []
         current_pixel: int = 0
         current_byte: int = 0
-        while current_pixel < pixel_count:
-            chunk_header = in_[current_byte]
-            current_byte += 1
-            if chunk_header < 128:
-                # "Raw" pixels - just read them out (up to 127)
-                chunk_header += 1
-                for _ in range(chunk_header):
-                    raw_data.append(in_[current_byte : current_byte + int(self.bpp)])
-                    current_byte += int(self.bpp)
-                    current_pixel += 1
-            else:
-                # RLE
-                chunk_header -= 127
-                raw_data.extend(in_[current_byte : current_byte + int(self.bpp)] for _ in range(chunk_header))
-                current_byte += int(self.bpp)
+        with BytesIO() as raw_data:
+            while current_pixel < pixel_count:
+                chunk_header = in_[current_byte]
+                current_byte += 1
+                if chunk_header < 128:
+                    # "Raw" pixels - just read them out (up to 127)
+                    chunk_header += 1
+                    chunk_end = chunk_header * int(self.bpp)
+                    raw_data.write(in_[current_byte : current_byte + chunk_end])
+                else:
+                    # RLE - insert N copies of a single pixel into output
+                    chunk_header -= 127
+                    chunk_end = int(self.bpp)
+                    raw_data.writelines(in_[current_byte : current_byte + chunk_end] for _ in range(chunk_header))
                 current_pixel += chunk_header
-        return b"".join(raw_data)
+                current_byte += chunk_end
+            return raw_data.getvalue()
 
-    def unload_rle_data(self: Self, out_: bytes) -> bool:
-        raise NotImplementedError
+    def unload_rle_data(self: Self) -> bytes:
+        """Weirdly named; actually does the RLE encoding"""
+        MAX_CHUNK: Final[int] = 128
+        pixel_count: Final[int] = self.width * self.height
+        current_pixel: int = 0
+        flat_data: Final = self.npdata.flat
+        with BytesIO() as res:
+            while current_pixel < pixel_count:
+                run_length = 1
+                raw = True
+                while (current_pixel + run_length) < pixel_count and (run_length < MAX_CHUNK):
+                    succ_eq = flat_data[current_pixel + run_length - 1] == flat_data[current_pixel + run_length]
+                    if run_length == 1:  # First pass determines if chunk is raw or not
+                        raw = not succ_eq
+                    if raw and succ_eq:  # We're done doing a raw chunk
+                        run_length -= 1
+                        break
+                    if not raw and not succ_eq:  # We're done doing an RLE chunk
+                        break
+                    run_length += 1
+                flag = (run_length - 1) if raw else (run_length + 127)
+                res.write(flag.to_bytes(1))
+                if raw:
+                    res.writelines(bytes(c) for c in flat_data[current_pixel : current_pixel + run_length])
+                else:
+                    res.write(bytes(flat_data[current_pixel]))
+                current_pixel += run_length
+            return res.getvalue()
+
+    @property
+    def _raw_payload(self: Self) -> bytes:
+        return b"".join(bytes(c) for c in self.npdata.flat)

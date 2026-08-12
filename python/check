@@ -1,11 +1,13 @@
 #!/bin/bash
 clear
+set -e
 uv --preview-features format format -- --line-length 120
+set +e
 ruff check .
 uv run mypy .
 uv run lib/tgaimage.py
 if true; then
-    uv run pytest -vv # --durations=5
+    uv run pytest -vv  # --capture=tee-sys --durations=5
 else
     uv run python -m cProfile -o out.prof .venv/bin/pytest -vv
     uv run snakeviz out.prof

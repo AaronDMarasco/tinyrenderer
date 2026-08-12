@@ -11,8 +11,8 @@ import numpy as np
 import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
-from icecream import ic
 
+# from icecream import ic
 from ..tgaimage import TGAColor, TGAImage, uint8_t
 
 valid_uint8_t = st.integers(0, 255)
@@ -26,6 +26,9 @@ class GoldenFile(NamedTuple):
     colors: int
     height: int
     width: int
+
+    def __str__(self: Self) -> str:
+        return f"{self.path.name}: {self.width}x{self.height} {self.color_type} RLE={self.RLE}"
 
 
 TEST_FILES: Final[tuple[GoldenFile, ...]] = (
@@ -83,12 +86,18 @@ TEST_FILES: Final[tuple[GoldenFile, ...]] = (
 
 
 class TestTGAColor:
-    def test_bad_index(self: Self) -> None:
-        uut = TGAColor()
-        with pytest.raises(IndexError):
-            uut[-5]
-        with pytest.raises(IndexError):
-            uut[4]
+    def test_bad_index(self: Self, subtests: pytest.Subtests) -> None:
+        with pytest.raises(AssertionError):
+            uut = TGAColor(bpp=uint8_t(0))
+        with pytest.raises(AssertionError):
+            uut = TGAColor(bpp=uint8_t(5))
+        for bpp in range(1, 5):
+            with subtests.test(bpp=bpp):
+                uut = TGAColor(bpp=uint8_t(bpp))
+                with pytest.raises(IndexError):
+                    uut[-(bpp + 1)]
+                with pytest.raises(IndexError):
+                    uut[bpp]
 
     @given(st.integers())
     def test_bad_index_hypothesis(self: Self, v: int) -> None:
@@ -194,7 +203,6 @@ class TestTGAImage:
         uut = TGAImage(h=5, w=3, c=TGAColor(1, 2, 3, 4))
         assert uut.npdata.tolist() == [[TGAColor(1, 2, 3, 4)] * 3] * 5
 
-    # @settings(deadline=None)  # Why is this so slow?
     @given(h_y=limited_xy(), w_x=limited_xy())
     def test_set_get(self: Self, h_y: tuple[int, int], w_x: tuple[int, int]) -> None:
         (h, y) = h_y
@@ -202,7 +210,6 @@ class TestTGAImage:
         # Minimum 1x1 image:
         h = h if h else 1
         w = w if w else 1
-        # print(f"{x=} {w=} {y=} {h=}")
         uut = TGAImage(w=w, h=h)
         color = TGAColor(1, 2, 3, 4)
         assert uut.get(0, 0) == TGAColor()
@@ -286,7 +293,23 @@ class TestTGAImage:
             f"Expected {test_file.colors} colors, got {count}"
         )
 
+    # @pytest.mark.skip()
     def test_good_file_matrix(self: Self, subtests: pytest.Subtests) -> None:
         for f in TEST_FILES:
-            with subtests.test(msg=f"{f.path.name}: {f.width}x{f.height} {f.color_type} RLE={f.RLE}"):
+            with subtests.test(msg=str(f)):
                 self.check_file(f)
+
+    def test_rle_unrle(self: Self, subtests: pytest.Subtests) -> None:
+        # Sometimes the raw RLE didn't match, but the re-expanded matches...
+        for test_file in (f for f in TEST_FILES if f.RLE):
+            with subtests.test(msg=str(test_file)):
+                TestTGAImage.skip_missing(test_file.path)
+                # Un-RLE the data...
+                uut = TGAImage.read_tga_file(test_file.path)
+                # Get the original data back out
+                golden_data = uut._raw_payload
+                # Re-RLE the data...
+                re_compressed = uut.unload_rle_data()
+                # Expand that
+                test_data = uut.load_rle_data(re_compressed)
+                assert test_data == golden_data
