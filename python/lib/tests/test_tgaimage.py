@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import Final, NamedTuple, Self
 
@@ -83,6 +83,17 @@ TEST_FILES: Final[tuple[GoldenFile, ...]] = (
         width=1024,
     ),
 )
+
+
+# #@pytest.fixture(params=range(len(TEST_FILES)))
+# #def file_suite(golden_idx: int) -> GoldenFile:
+# #    return TEST_FILES[golden_idx]
+
+
+@pytest.fixture(params=TEST_FILES, ids=[str(g) for g in TEST_FILES])
+def file_suite(request: pytest.FixtureRequest) -> Generator[GoldenFile]:
+    yield request.param
+    # return TEST_FILES[golden_idx]
 
 
 class TestTGAColor:
@@ -284,32 +295,47 @@ class TestTGAImage:
         return count
 
     @staticmethod
-    def check_file(test_file: GoldenFile) -> None:
-        TestTGAImage.skip_missing(test_file.path)
-        uut = TGAImage.read_tga_file(test_file.path)
-        assert uut.width == test_file.width, f"Expected width={test_file.width}, got {uut.width}"
-        assert uut.height == test_file.height, f"Expected height={test_file.height}, got {uut.height}"
-        assert (count := TestTGAImage.count_unique_colors(uut)) == test_file.colors, (
-            f"Expected {test_file.colors} colors, got {count}"
+    def check_image(uut: TGAImage, metadata: GoldenFile) -> None:
+        # TODO: Sample a random set of pixels or something?
+        assert uut.width == metadata.width, f"Expected width={metadata.width}, got {uut.width}"
+        assert uut.height == metadata.height, f"Expected height={metadata.height}, got {uut.height}"
+        assert (count := TestTGAImage.count_unique_colors(uut)) == metadata.colors, (
+            f"Expected {metadata.colors} colors, got {count}"
         )
 
     # @pytest.mark.skip()
-    def test_good_file_matrix(self: Self, subtests: pytest.Subtests) -> None:
-        for f in TEST_FILES:
-            with subtests.test(msg=str(f)):
-                self.check_file(f)
+    def test_good_files(self: Self, file_suite: GoldenFile) -> None:
+        TestTGAImage.skip_missing(file_suite.path)
+        uut = TGAImage.read_tga_file(file_suite.path)
+        self.check_image(uut, file_suite)
 
-    def test_rle_unrle(self: Self, subtests: pytest.Subtests) -> None:
+    # @pytest.mark.skip()
+    def test_rle_unrle(self: Self, subtests: pytest.Subtests, file_suite: GoldenFile) -> None:
         # Sometimes the raw RLE didn't match, but the re-expanded matches...
-        for test_file in (f for f in TEST_FILES if f.RLE):
-            with subtests.test(msg=str(test_file)):
-                TestTGAImage.skip_missing(test_file.path)
-                # Un-RLE the data...
-                uut = TGAImage.read_tga_file(test_file.path)
-                # Get the original data back out
-                golden_data = uut._raw_payload
-                # Re-RLE the data...
-                re_compressed = uut.unload_rle_data()
-                # Expand that
-                test_data = uut.load_rle_data(re_compressed)
-                assert test_data == golden_data
+        TestTGAImage.skip_missing(file_suite.path)
+        # Un-RLE the data...
+        uut = TGAImage.read_tga_file(file_suite.path)
+        # Get the original data back out
+        golden_data = uut._raw_payload
+        # Re-RLE the data...
+        re_compressed = uut.unload_rle_data()
+        # Expand that
+        test_data = uut.load_rle_data(re_compressed)
+        assert test_data == golden_data
+
+    # @pytest.mark.skip()
+    @pytest.mark.parametrize("vflip", [False, True], ids=["no_vflip", "vflip"])
+    @pytest.mark.parametrize("rle", [False, True], ids=["no_rle", "rle"])
+    def test_write_file(
+        self: Self, tmp_path_factory: pytest.TempPathFactory, file_suite: GoldenFile, vflip: bool, rle: bool
+    ) -> None:
+        tmpdir = tmp_path_factory.mktemp("test_write_file")
+        ofile = f"{file_suite.path.stem}{'_flip' if vflip else ''}{'_rle' if rle else ''}.tga"
+
+        writer = TGAImage.read_tga_file(file_suite.path)
+        writer.write_tga_file(tmpdir / ofile, vflip=vflip, rle=rle)
+
+        uut = TGAImage.read_tga_file(tmpdir / ofile)
+        self.check_image(uut, file_suite)
+        assert uut.was_vflipped == vflip, f"Expected {vflip=} but got {uut.was_vflipped}"
+        assert uut.was_rle == rle, f"Expected {rle=} but got {uut.was_rle}"

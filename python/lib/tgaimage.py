@@ -113,9 +113,12 @@ class TGAImage:
         self.height = h
         self.bpp: uint8_t = uint8_t(bpp)
         self.npdata: np.ndarray = np.full(shape=(h, w), fill_value=TGAColor())
-
         if c is not None:
             self.npdata = np.full(shape=(h, w), fill_value=c)
+        # These are pretty much for testing purposes only:
+        self.was_hflipped = False
+        self.was_vflipped = False
+        self.was_rle = False
 
     @classmethod
     def read_tga_file(cls: type[TI], filename: str | Path) -> TI:
@@ -136,6 +139,7 @@ class TGAImage:
         if dtc in {10, 11}:
             # RLE data
             raw_data = res.load_rle_data(raw_data)
+            res.was_rle = True
         if dtc in {2, 3}:
             # Not RLE data
             # trailing = raw_data[data_size:]
@@ -146,12 +150,28 @@ class TGAImage:
         assert res.npdata.shape == (h, w), f"Re-shaping error? {(h, w)=} vs. {res.npdata.shape}"
         if not (imgd & 0x20):
             res.flip_vertically()
+            res.was_vflipped = True
         if imgd & 0x10:
             res.flip_horizontally()
+            res.was_hflipped = True
         return res
 
-    def write_tga_file(self: Self, filename: str | Path, vflip: bool = True, rle: bool = True) -> bool:
-        raise NotImplementedError
+    def write_tga_file(self: Self, filename: str | Path, vflip: bool = True, rle: bool = True) -> None:
+        developer_area_ref: Final[bytes] = b"\0\0\0\0"
+        extension_area_ref: Final[bytes] = b"\0\0\0\0"
+        footer: Final[bytes] = b"TRUEVISION-XFILE.\0"
+        header = np.zeros(1, dtype=TGAHeader)
+        header["bitsperpixel"] = self.bpp << 3
+        header["width"] = self.width
+        header["height"] = self.height
+        header["datatypecode"] = (10 if rle else 2) + (1 if self.bpp == self.Format.GRAYSCALE else 0)
+        header["imagedescriptor"] = 0 if vflip else 0x20  # top-left or bottom-left origin
+        with open(filename, "wb") as out:
+            out.write(header.tobytes())
+            out.write(self.unload_rle_data() if rle else self._raw_payload)
+            out.write(developer_area_ref)
+            out.write(extension_area_ref)
+            out.write(footer)
 
     def flip_horizontally(self: Self) -> None:
         self.npdata = np.fliplr(self.npdata)
