@@ -4,8 +4,9 @@ from dataclasses import dataclass
 from enum import IntEnum
 from io import BytesIO
 from itertools import batched
+from struct import Struct
 from pathlib import Path
-from typing import Final, Self, TypeAlias, TypeVar, overload
+from typing import Final, Self, TypeAlias, TypeVar
 from warnings import warn
 
 import numpy as np
@@ -14,6 +15,9 @@ from numpy import dtype
 # Some C++ cross-referencing for simplicity
 uint8_t: TypeAlias = np.uint8
 uint16_t: TypeAlias = np.uint16
+
+# This is to speed up TGAColor.__init__ because int.to_bytes() is slooooow, so B=unsigned char
+packer = Struct("B").pack
 
 
 # Utility from itertools documentation
@@ -45,24 +49,23 @@ TGAHeader: Final[dtype] = dtype(
 class TGAColor:
     data: list[bytes]
 
-    @overload
-    def __init__(self: Self, b: int = 0, g: int = 0, r: int = 0, a: int = 0, bpp: uint8_t | None = None) -> None: ...
-    @overload
-    def __init__(self: Self, b: bytes, g: bytes, r: bytes, a: bytes, bpp: uint8_t | None = None) -> None: ...
-
-    def __init__(self: Self, b=0, g=0, r=0, a=0, bpp: uint8_t | None = None) -> None:
+    def __init__(self: Self, b: int = 0, g: int = 0, r: int = 0, a: int = 0, bpp: uint8_t | None = None) -> None:
         if bpp is None:
             bpp = uint8_t(4)
-        assert 0 < bpp <= 4, f"Invalid BPP={bpp}"
-        if isinstance(b, int):
-            assert isinstance(g, int) and isinstance(r, int) and isinstance(a, int), "Bad call!"
-            self.data = [b.to_bytes(1), g.to_bytes(1), r.to_bytes(1), a.to_bytes(1)][:bpp]
-        elif isinstance(b, bytes):
-            assert isinstance(g, bytes) and isinstance(r, bytes) and isinstance(a, bytes), "Bad call!"
-            self.data = [b, g, r, a][:bpp]
-        else:
-            raise ValueError("Bad call types!")
-        assert len(self.data) == bpp, "Invalid internal error with bpp?"
+
+        self.data: list[bytes]
+        # This "match" is about 5% faster than "self.data = [packer(b), packer(g), packer(r), packer(a)][:bpp]"
+        match bpp:
+            case 1:
+                self.data = [packer(b)]
+            case 2:
+                self.data = [packer(b), packer(g)]
+            case 3:
+                self.data = [packer(b), packer(g), packer(r)]
+            case 4:
+                self.data = [packer(b), packer(g), packer(r), packer(a)]
+            case _:
+                raise ValueError(f"Invalid BPP={bpp}!")
 
     @property
     def bytespp(self: Self) -> int:
@@ -112,9 +115,8 @@ class TGAImage:
         self.width = w
         self.height = h
         self.bpp: uint8_t = uint8_t(bpp)
-        self.npdata: np.ndarray = np.full(shape=(h, w), fill_value=TGAColor())
-        if c is not None:
-            self.npdata = np.full(shape=(h, w), fill_value=c)
+        self.npdata: np.ndarray = np.full(shape=(h, w), fill_value=(c if c is not None else TGAColor()))
+
         # These are pretty much for testing purposes only:
         self.was_hflipped = False
         self.was_vflipped = False

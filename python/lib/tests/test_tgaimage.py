@@ -20,7 +20,9 @@ friendly.install()
 
 
 class GoldenFile(NamedTuple):
-    path: Path
+    """Helper to describe a golden file for testing fixture"""
+
+    path: Path  # These are written weird to allow paste relative from python subdir
     color_type: str
     RLE: bool
     colors: int
@@ -28,7 +30,7 @@ class GoldenFile(NamedTuple):
     width: int
 
     def __str__(self: Self) -> str:
-        return f"{self.path.name}: {self.width}x{self.height} {self.color_type} RLE={self.RLE}"
+        return f"{self.path.name}: {self.width}x{self.height} {self.color_type} ({'' if self.RLE else 'no '}RLE)"
 
 
 TEST_FILES: Final[tuple[GoldenFile, ...]] = (
@@ -85,22 +87,16 @@ TEST_FILES: Final[tuple[GoldenFile, ...]] = (
 )
 
 
-# #@pytest.fixture(params=range(len(TEST_FILES)))
-# #def file_suite(golden_idx: int) -> GoldenFile:
-# #    return TEST_FILES[golden_idx]
-
-
 @pytest.fixture(params=TEST_FILES, ids=[str(g) for g in TEST_FILES])
 def file_suite(request: pytest.FixtureRequest) -> Generator[GoldenFile]:
     yield request.param
-    # return TEST_FILES[golden_idx]
 
 
 class TestTGAColor:
     def test_bad_index(self: Self, subtests: pytest.Subtests) -> None:
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             uut = TGAColor(bpp=uint8_t(0))
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             uut = TGAColor(bpp=uint8_t(5))
         for bpp in range(1, 5):
             with subtests.test(bpp=bpp):
