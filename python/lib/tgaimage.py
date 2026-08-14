@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import FrozenInstanceError, dataclass, field
 from enum import IntEnum
+from functools import cache
 from io import BytesIO
 from itertools import batched
-from struct import Struct
 from pathlib import Path
 from typing import Final, Self, TypeAlias, TypeVar
 from warnings import warn
@@ -15,9 +15,6 @@ from numpy import dtype
 # Some C++ cross-referencing for simplicity
 uint8_t: TypeAlias = np.uint8
 uint16_t: TypeAlias = np.uint16
-
-# This is to speed up TGAColor.__init__ because int.to_bytes() is slooooow, so B=unsigned char
-packer = Struct("B").pack
 
 
 # Utility from itertools documentation
@@ -45,49 +42,66 @@ TGAHeader: Final[dtype] = dtype(
 )
 
 
-@dataclass(slots=True)
-class TGAColor:
-    data: list[bytes]
+@cache
+def TGAColor(b: int = 0, g: int = 0, r: int = 0, a: int = 0, *, bpp: uint8_t | None = None) -> TGAColor_t:
+    return TGAColor_t(b, g, r, a, bpp=bpp)
 
-    def __init__(self: Self, b: int = 0, g: int = 0, r: int = 0, a: int = 0, bpp: uint8_t | None = None) -> None:
+
+def TGAColor_from_raw(data: bytes, *, bpp: int) -> list[TGAColor_t]:
+    return TGAColor_t.from_raw(data, bpp=bpp)
+
+
+@dataclass(slots=True)
+class TGAColor_t:
+    _data: tuple[int, ...] = field(init=False)
+    _byte_data: bytes | None = field(default=None, init=False)
+    _repr: str | None = field(default=None, init=False)
+
+    def __init__(self: Self, b: int = 0, g: int = 0, r: int = 0, a: int = 0, *, bpp: uint8_t | None = None) -> None:
         if bpp is None:
             bpp = uint8_t(4)
+        if not (1 <= bpp <= 4):
+            raise ValueError(f"Invalid BPP={bpp}!")
 
-        self.data: list[bytes]
-        # This "match" is about 5% faster than "self.data = [packer(b), packer(g), packer(r), packer(a)][:bpp]"
-        match bpp:
-            case 1:
-                self.data = [packer(b)]
-            case 2:
-                self.data = [packer(b), packer(g)]
-            case 3:
-                self.data = [packer(b), packer(g), packer(r)]
-            case 4:
-                self.data = [packer(b), packer(g), packer(r), packer(a)]
-            case _:
-                raise ValueError(f"Invalid BPP={bpp}!")
+        self._data = (b, g, r, a)[:bpp]
+
+        # Cached responses:
+        self._byte_data = None
+        self._repr = None
 
     @property
     def bytespp(self: Self) -> int:
-        return len(self.data)
+        return len(self._data)
 
     def __getitem__(self: Self, idx: int) -> uint8_t:
-        return uint8_t(int.from_bytes(self.data[idx]))
+        return uint8_t(self._data[idx])
 
     def __setitem__(self: Self, idx: int, val: uint8_t) -> None:
-        self.data[idx] = int(val).to_bytes(1)
+        raise FrozenInstanceError
 
     def __bytes__(self: Self) -> bytes:
-        return b"".join(self.data)
+        if self._byte_data is None:
+            self._byte_data = b"".join(c.to_bytes() for c in self._data)
+        return self._byte_data
 
     def __hash__(self: Self) -> int:
-        return hash(tuple(self.data))
+        return hash(self._data)
 
     def __repr__(self: Self) -> str:
-        return f"TGAColor(b={self[0]}, g={self[1]}, r={self[2]}, a={self[3]}, bpp={self.bytespp})"
+        if self._repr is None:
+            bpp = self.bytespp
+            res = [f"b={self[0]}"]
+            if bpp >= 2:
+                res.append(f"g={self[1]}")
+            if bpp >= 3:
+                res.append(f"r={self[2]}")
+            if bpp == 4:
+                res.append(f"a={self[3]}")
+            self._repr = "TGAColor_t(" + ", ".join(res) + f", bpp={self.bytespp})"
+        return self._repr
 
     @staticmethod
-    def from_raw(data: bytes, *, bpp: int) -> list[TGAColor]:
+    def from_raw(data: bytes, *, bpp: int) -> list[TGAColor_t]:
         if (ld := len(data)) % bpp:
             warn(f"Possibly bad read of {ld} bytes at {bpp} bpp = remainder {ld % bpp}", stacklevel=2)
 
@@ -111,11 +125,12 @@ class TGAImage:
 
     FORMAT_VALS: Final = set(x.value for x in Format)
 
-    def __init__(self: Self, w: int = 0, h: int = 0, bpp: int = 4, c: TGAColor | None = None) -> None:
+    def __init__(self: Self, w: int = 0, h: int = 0, bpp: int = 4, c: TGAColor_t | None = None) -> None:
         self.width = w
         self.height = h
         self.bpp: uint8_t = uint8_t(bpp)
-        self.npdata: np.ndarray = np.full(shape=(h, w), fill_value=(c if c is not None else TGAColor()))
+        fill_value = c if c is not None else TGAColor()
+        self.npdata: np.ndarray = np.full(shape=(h, w), fill_value=fill_value)
 
         # These are pretty much for testing purposes only:
         self.was_hflipped = False
@@ -147,7 +162,7 @@ class TGAImage:
             # trailing = raw_data[data_size:]
             # Truncate it
             raw_data = raw_data[:data_size]
-        pixels = [x for x in grouper(TGAColor.from_raw(raw_data, bpp=bpp), w)]
+        pixels = [x for x in grouper(TGAColor_from_raw(raw_data, bpp=bpp), w)]
         res.npdata = np.array(pixels)
         assert res.npdata.shape == (h, w), f"Re-shaping error? {(h, w)=} vs. {res.npdata.shape}"
         if not (imgd & 0x20):
@@ -181,11 +196,11 @@ class TGAImage:
     def flip_vertically(self: Self) -> None:
         self.npdata = np.flipud(self.npdata)
 
-    def get(self: Self, x: int, y: int) -> TGAColor:
+    def get(self: Self, x: int, y: int) -> TGAColor_t:
         # TODO: Test this compared to what the C++ library does?
         return self.npdata[y, x]
 
-    def set(self: Self, x: int, y: int, c: TGAColor) -> None:
+    def set(self: Self, x: int, y: int, c: TGAColor_t) -> None:
         self.npdata[y, x] = c
 
     def load_rle_data(self: Self, in_: bytes) -> bytes:

@@ -9,5 +9,5 @@ if true; then
     uv run pytest -vv  # --capture=tee-sys --durations=5
 else
     uv run python -m cProfile -o out.prof .venv/bin/pytest -vv
-    uv run snakeviz out.prof
+    uv run snakeviz out.prof # --server
 fi

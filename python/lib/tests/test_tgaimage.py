@@ -12,8 +12,7 @@ import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
 
-# from icecream import ic
-from ..tgaimage import TGAColor, TGAImage, uint8_t
+from ..tgaimage import TGAColor, TGAColor_t, TGAImage, uint8_t
 
 valid_uint8_t = st.integers(0, 255)
 friendly.install()
@@ -114,32 +113,34 @@ class TestTGAColor:
         with pytest.raises(IndexError):
             uut[v]
 
-    @given(st.integers())
-    def test_bad_index_write_hypothesis(self: Self, v: int) -> None:
-        assume(v < -4 or v > 3)
-        assume(v < sys.maxsize)
-        uut = TGAColor()
-        with pytest.raises(IndexError):
-            uut[v] = uint8_t(42)
-
-    @given(idx=st.integers(0, 3), b=valid_uint8_t, g=valid_uint8_t, r=valid_uint8_t, a=valid_uint8_t)
-    def test_write(self: Self, idx: int, b: int, g: int, r: int, a: int) -> None:
-        uut = TGAColor(b, g, r, a)
-        assert uut[0] == b
-        assert uut[1] == g
-        assert uut[2] == r
-        assert uut[3] == a
-        uut[idx] = uint8_t(42)
-        assert uut[idx] == 42
-
     @given(b=valid_uint8_t, g=valid_uint8_t, r=valid_uint8_t, a=valid_uint8_t)
     def test_bgra_hypothesis(self: Self, b: int, g: int, r: int, a: int) -> None:
         uut = TGAColor(b, g, r, a)
-        assert uut.data == [b.to_bytes(1), g.to_bytes(1), r.to_bytes(1), a.to_bytes(1)]
         assert uut[0] == b
         assert uut[1] == g
         assert uut[2] == r
         assert uut[3] == a
+
+    @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
+    @given(b=valid_uint8_t, g=valid_uint8_t, r=valid_uint8_t, a=valid_uint8_t)
+    def test_bgra_hypothesis_bpp(self: Self, b: int, g: int, r: int, a: int, bpp: int) -> None:
+        uut = TGAColor(b, g, r, a, bpp=uint8_t(bpp))
+        assert uut[0] == b
+        if bpp >= 2:
+            assert uut[1] == g
+        else:
+            with pytest.raises(IndexError):
+                uut[1]
+        if bpp >= 3:
+            assert uut[2] == r
+        else:
+            with pytest.raises(IndexError):
+                uut[2]
+        if bpp == 4:
+            assert uut[3] == a
+        else:
+            with pytest.raises(IndexError):
+                uut[3]
 
     def test_bgra(self: Self) -> None:
         for b in range(20):
@@ -158,6 +159,15 @@ class TestTGAColor:
     def test_not_equal(self: Self) -> None:
         assert TGAColor(1, 2, 3, 4) != TGAColor(1, 2, 3, 3)
 
+    def test_caching(self: Self) -> None:
+        assert TGAColor(1, 2, 3, 4) is TGAColor(1, 2, 3, 4)
+
+    def test_string(self: Self) -> None:
+        assert repr(TGAColor(1, 2, 3, 4, bpp=4)) == "TGAColor_t(b=1, g=2, r=3, a=4, bpp=4)"
+        assert repr(TGAColor(1, 2, 3, bpp=3)) == "TGAColor_t(b=1, g=2, r=3, bpp=3)"
+        assert repr(TGAColor(1, 2, bpp=2)) == "TGAColor_t(b=1, g=2, bpp=2)"
+        assert repr(TGAColor(1, bpp=1)) == "TGAColor_t(b=1, bpp=1)"
+
 
 @st.composite
 def limited_xy(draw: Callable, min_: int = 0) -> tuple[int, int]:
@@ -173,7 +183,7 @@ def limited_xy(draw: Callable, min_: int = 0) -> tuple[int, int]:
     return (max_, sub)
 
 
-GRADIENT: Final[list[list[TGAColor]]] = [
+GRADIENT: Final[list[list[TGAColor_t]]] = [
     [
         TGAColor(0, 0, 0, 0),
         TGAColor(10, 10, 10, 10),
