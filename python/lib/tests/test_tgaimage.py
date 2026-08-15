@@ -93,6 +93,12 @@ def file_suite(request: pytest.FixtureRequest) -> Generator[GoldenFile]:
 
 
 class TestTGAColor:
+    def test_auto_bpp(self: Self) -> None:
+        assert TGAColor(1, 2, 3, 4).bytespp == 4
+        assert TGAColor(1, 2, 3).bytespp == 3
+        assert TGAColor(1, 2).bytespp == 2
+        assert TGAColor(1).bytespp == 1
+
     def test_bad_index(self: Self, subtests: pytest.Subtests) -> None:
         with pytest.raises(ValueError):
             uut = TGAColor(bpp=0)
@@ -114,6 +120,31 @@ class TestTGAColor:
         uut = TGAColor()
         with pytest.raises(IndexError):
             uut[v]
+
+    def test_bad_kwargs(self: Self) -> None:
+        with pytest.raises(ValueError):
+            TGAColor(g=1)
+        with pytest.raises(ValueError):
+            TGAColor(r=1)
+        with pytest.raises(ValueError):
+            TGAColor(a=1)
+        with pytest.raises(ValueError):
+            TGAColor(b=None, g=1, r=1, a=1)
+        with pytest.raises(ValueError):
+            TGAColor(b=1, g=None, r=1, a=1)
+        with pytest.raises(ValueError):
+            TGAColor(b=1, g=1, r=None, a=1)
+
+    def test_bgra(self: Self) -> None:
+        for b in range(20):
+            for g in range(20):
+                for r in range(20):
+                    for a in range(20):
+                        uut = TGAColor(b, g, r, a)
+                        assert uut[0] == b
+                        assert uut[1] == g
+                        assert uut[2] == r
+                        assert uut[3] == a
 
     @given(b=valid_uint8_t, g=valid_uint8_t, r=valid_uint8_t, a=valid_uint8_t)
     def test_bgra_hypothesis(self: Self, b: int, g: int, r: int, a: int) -> None:
@@ -144,29 +175,6 @@ class TestTGAColor:
             with pytest.raises(IndexError):
                 uut[3]
 
-    def test_bgra(self: Self) -> None:
-        for b in range(20):
-            for g in range(20):
-                for r in range(20):
-                    for a in range(20):
-                        uut = TGAColor(b, g, r, a)
-                        assert uut[0] == b
-                        assert uut[1] == g
-                        assert uut[2] == r
-                        assert uut[3] == a
-
-    def test_auto_bpp(self: Self) -> None:
-        assert TGAColor(1, 2, 3, 4).bytespp == 4
-        assert TGAColor(1, 2, 3).bytespp == 3
-        assert TGAColor(1, 2).bytespp == 2
-        assert TGAColor(1).bytespp == 1
-
-    def test_equal(self: Self) -> None:
-        assert TGAColor(1, 2, 3, 4) == TGAColor(1, 2, 3, 4)
-
-    def test_not_equal(self: Self) -> None:
-        assert TGAColor(1, 2, 3, 4) != TGAColor(1, 2, 3, 3)
-
     def test_caching(self: Self) -> None:
         assert TGAColor(1, 2, 3, 4) is TGAColor(1, 2, 3, 4)
         assert TGAColor(1, 2, 3) is TGAColor(1, 2, 3)
@@ -181,6 +189,12 @@ class TestTGAColor:
         assert TGAColor(1) is TGAColor(1, bpp=1)
         assert TGAColor() is TGAColor(0, bpp=1)
 
+    def test_equal(self: Self) -> None:
+        assert TGAColor(1, 2, 3, 4) == TGAColor(1, 2, 3, 4)
+
+    def test_not_equal(self: Self) -> None:
+        assert TGAColor(1, 2, 3, 4) != TGAColor(1, 2, 3, 3)
+
     def test_string(self: Self, subtests: pytest.Subtests) -> None:
         with subtests.test("Full Constructor"):
             assert repr(TGAColor(1, 2, 3, 4, bpp=4)) == "TGAColor_t(b=1, g=2, r=3, a=4, bpp=4)"
@@ -192,20 +206,6 @@ class TestTGAColor:
             assert repr(TGAColor(1, 2, 3)) == "TGAColor_t(b=1, g=2, r=3, bpp=3)"
             assert repr(TGAColor(1, 2)) == "TGAColor_t(b=1, g=2, bpp=2)"
             assert repr(TGAColor(1)) == "TGAColor_t(b=1, bpp=1)"
-
-    def test_bad_kwargs(self: Self) -> None:
-        with pytest.raises(ValueError):
-            TGAColor(g=1)
-        with pytest.raises(ValueError):
-            TGAColor(r=1)
-        with pytest.raises(ValueError):
-            TGAColor(a=1)
-        with pytest.raises(ValueError):
-            TGAColor(b=None, g=1, r=1, a=1)
-        with pytest.raises(ValueError):
-            TGAColor(b=1, g=None, r=1, a=1)
-        with pytest.raises(ValueError):
-            TGAColor(b=1, g=1, r=None, a=1)
 
 
 @st.composite
@@ -226,48 +226,48 @@ class TestTGAImage:
     GRADIENT: list[list[TGAColor_t]] | None = None
     GRADIENT_SIZE: Final = 4  # Max 4 or exceeds uint8_t
 
-    def test_raw_empty(self: Self) -> None:
-        uut = TGAImage(h=5, w=3)
-        assert uut.npdata.tolist() == [[TGAColor()] * 3] * 5
+    # Helpers:
+    @staticmethod
+    def check_image(uut: TGAImage, metadata: GoldenFile) -> None:
+        # TODO: Sample a random set of pixels or something?
+        assert uut.width == metadata.width, f"Expected width={metadata.width}, got {uut.width}"
+        assert uut.height == metadata.height, f"Expected height={metadata.height}, got {uut.height}"
+        assert (count := TestTGAImage.count_unique_colors(uut)) == metadata.colors, (  # noqa: RUF018
+            f"Expected {metadata.colors} colors, got {count}"
+        )
 
-    def test_raw_fill(self: Self) -> None:
-        uut = TGAImage(h=5, w=3, c=TGAColor(1, 2, 3, 4))
-        assert uut.npdata.tolist() == [[TGAColor(1, 2, 3, 4)] * 3] * 5
+    @staticmethod
+    def count_unique_colors(uut: TGAImage) -> int:
+        uniques = set(uut.npdata.flat)
+        count = len(uniques)
+        return count
 
-    @given(h_y=limited_xy(), w_x=limited_xy())
-    def test_set_get(self: Self, h_y: tuple[int, int], w_x: tuple[int, int]) -> None:
-        (h, y) = h_y
-        (w, x) = w_x
-        # Minimum 1x1 image:
-        h = h if h else 1
-        w = w if w else 1
-        uut = TGAImage(w=w, h=h)
-        color = TGAColor(1, 2, 3, 4)
-        assert uut.get(0, 0) == TGAColor()
-        uut.set(x, y, color)
-        assert uut.get(x, y) != TGAColor()
-        assert uut.get(x, y) == color
+    @staticmethod
+    def skip_missing(tga_file: Path) -> None:
+        if not tga_file.is_file():
+            pytest.skip(f"The required file ({tga_file}) was not found - have you installed Steam?")
 
-    def gradient_fill(self: Self) -> TGAImage:
-        uut = TGAImage(w=self.GRADIENT_SIZE, h=self.GRADIENT_SIZE)
-        first_run = self.GRADIENT is None
+    @classmethod
+    def gradient_fill(cls) -> TGAImage:
+        uut = TGAImage(w=cls.GRADIENT_SIZE, h=cls.GRADIENT_SIZE)
+        first_run = cls.GRADIENT is None
         if first_run:
-            self.GRADIENT = [[] for _ in range(self.GRADIENT_SIZE)]
-        for row in range(self.GRADIENT_SIZE):
-            for col in range(self.GRADIENT_SIZE):
+            cls.GRADIENT = [[] for _ in range(cls.GRADIENT_SIZE)]
+        for row in range(cls.GRADIENT_SIZE):
+            for col in range(cls.GRADIENT_SIZE):
                 v = 10 * row + col
                 c = TGAColor(v, v, v, v)
                 uut.set(row, col, c)
                 if first_run:
-                    assert self.GRADIENT is not None, "Useless but keeping mypy happy"
-                    self.GRADIENT[col].append(c)
-
+                    assert cls.GRADIENT is not None, "Useless but keeping mypy happy"
+                    cls.GRADIENT[col].append(c)
         return uut
 
-    def test_gradient_fill(self: Self) -> None:
-        uut = self.gradient_fill()
-        assert uut.npdata.tolist() == np.array(self.GRADIENT).tolist()
-        assert np.array_equal(uut.npdata, np.array(self.GRADIENT))
+    # Test methods:
+    def test_bad_file(self: Self) -> None:
+        uut = TGAImage()
+        with pytest.raises(OSError):
+            uut.read_tga_file("/abc.tga")
 
     def test_double_flips(self: Self) -> None:
         uut = self.gradient_fill()
@@ -283,6 +283,17 @@ class TestTGAImage:
         uut.flip_horizontally()
         assert np.array_equal(uut.npdata, np.array(self.GRADIENT))
 
+    # @pytest.mark.skip()
+    def test_good_files(self: Self, file_suite: GoldenFile) -> None:
+        TestTGAImage.skip_missing(file_suite.path)
+        uut = TGAImage.read_tga_file(file_suite.path)
+        self.check_image(uut, file_suite)
+
+    def test_gradient_fill(self: Self) -> None:
+        uut = self.gradient_fill()
+        assert uut.npdata.tolist() == np.array(self.GRADIENT).tolist()
+        assert np.array_equal(uut.npdata, np.array(self.GRADIENT))
+
     def test_horizontal_flip(self: Self) -> None:
         uut = self.gradient_fill()
         uut.flip_horizontally()
@@ -294,47 +305,13 @@ class TestTGAImage:
                 golden[col, row] = c
         assert np.array_equal(uut.npdata, golden)
 
-    def test_vertical_flip(self: Self) -> None:
-        uut = self.gradient_fill()
-        uut.flip_vertically()
-        golden = np.full(shape=(self.GRADIENT_SIZE, self.GRADIENT_SIZE), fill_value=TGAColor())
-        for row in range(self.GRADIENT_SIZE):
-            for col in range(self.GRADIENT_SIZE):
-                v = 10 * row + (self.GRADIENT_SIZE - 1 - col)
-                c = TGAColor(v, v, v, v)
-                golden[col, row] = c
-        assert np.array_equal(uut.npdata, golden)
+    def test_raw_empty(self: Self) -> None:
+        uut = TGAImage(h=5, w=3)
+        assert uut.npdata.tolist() == [[TGAColor()] * 3] * 5
 
-    def test_bad_file(self: Self) -> None:
-        uut = TGAImage()
-        with pytest.raises(OSError):
-            uut.read_tga_file("/abc.tga")
-
-    @staticmethod
-    def count_unique_colors(uut: TGAImage) -> int:
-        uniques = set(uut.npdata.flat)
-        count = len(uniques)
-        return count
-
-    @staticmethod
-    def skip_missing(tga_file: Path) -> None:
-        if not tga_file.is_file():
-            pytest.skip(f"The required file ({tga_file}) was not found - have you installed Steam?")
-
-    @staticmethod
-    def check_image(uut: TGAImage, metadata: GoldenFile) -> None:
-        # TODO: Sample a random set of pixels or something?
-        assert uut.width == metadata.width, f"Expected width={metadata.width}, got {uut.width}"
-        assert uut.height == metadata.height, f"Expected height={metadata.height}, got {uut.height}"
-        assert (count := TestTGAImage.count_unique_colors(uut)) == metadata.colors, (  # noqa: RUF018
-            f"Expected {metadata.colors} colors, got {count}"
-        )
-
-    # @pytest.mark.skip()
-    def test_good_files(self: Self, file_suite: GoldenFile) -> None:
-        TestTGAImage.skip_missing(file_suite.path)
-        uut = TGAImage.read_tga_file(file_suite.path)
-        self.check_image(uut, file_suite)
+    def test_raw_fill(self: Self) -> None:
+        uut = TGAImage(h=5, w=3, c=TGAColor(1, 2, 3, 4))
+        assert uut.npdata.tolist() == [[TGAColor(1, 2, 3, 4)] * 3] * 5
 
     # @pytest.mark.skip()
     def test_rle_unrle(self: Self, subtests: pytest.Subtests, file_suite: GoldenFile) -> None:
@@ -349,6 +326,31 @@ class TestTGAImage:
         # Expand that
         test_data = uut.load_rle_data(re_compressed)
         assert test_data == golden_data
+
+    @given(h_y=limited_xy(), w_x=limited_xy())
+    def test_set_get(self: Self, h_y: tuple[int, int], w_x: tuple[int, int]) -> None:
+        (h, y) = h_y
+        (w, x) = w_x
+        # Minimum 1x1 image:
+        h = h if h else 1
+        w = w if w else 1
+        uut = TGAImage(w=w, h=h)
+        color = TGAColor(1, 2, 3, 4)
+        assert uut.get(0, 0) == TGAColor()
+        uut.set(x, y, color)
+        assert uut.get(x, y) != TGAColor()
+        assert uut.get(x, y) == color
+
+    def test_vertical_flip(self: Self) -> None:
+        uut = self.gradient_fill()
+        uut.flip_vertically()
+        golden = np.full(shape=(self.GRADIENT_SIZE, self.GRADIENT_SIZE), fill_value=TGAColor())
+        for row in range(self.GRADIENT_SIZE):
+            for col in range(self.GRADIENT_SIZE):
+                v = 10 * row + (self.GRADIENT_SIZE - 1 - col)
+                c = TGAColor(v, v, v, v)
+                golden[col, row] = c
+        assert np.array_equal(uut.npdata, golden)
 
     # @pytest.mark.skip()
     @pytest.mark.parametrize("vflip", [False, True], ids=["no_vflip", "vflip"])
