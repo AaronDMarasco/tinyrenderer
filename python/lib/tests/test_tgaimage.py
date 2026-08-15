@@ -12,7 +12,7 @@ import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
 
-from ..tgaimage import TGAColor, TGAColor_t, TGAImage, uint8_t
+from ..tgaimage import TGAColor, TGAColor_t, TGAImage
 
 valid_uint8_t = st.integers(0, 255)
 friendly.install()
@@ -94,13 +94,13 @@ def file_suite(request: pytest.FixtureRequest) -> Generator[GoldenFile]:
 class TestTGAColor:
     def test_bad_index(self: Self, subtests: pytest.Subtests) -> None:
         with pytest.raises(ValueError):
-            uut = TGAColor(bpp=uint8_t(0))
+            uut = TGAColor(bpp=0)
         with pytest.raises(ValueError):
-            uut = TGAColor(bpp=uint8_t(5))
+            uut = TGAColor(bpp=5)
         for bpp in range(1, 5):
             with subtests.test(bpp=bpp):
                 vals = [0] * bpp
-                uut = TGAColor(*vals, bpp=uint8_t(bpp))
+                uut = TGAColor(*vals, bpp=bpp)
                 with pytest.raises(IndexError):
                     uut[-(bpp + 1)]
                 with pytest.raises(IndexError):
@@ -125,7 +125,7 @@ class TestTGAColor:
     @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
     @given(b=valid_uint8_t, g=valid_uint8_t, r=valid_uint8_t, a=valid_uint8_t)
     def test_bgra_hypothesis_bpp(self: Self, b: int, g: int, r: int, a: int, bpp: int) -> None:
-        uut = TGAColor(b, g, r, a, bpp=uint8_t(bpp))
+        uut = TGAColor(b, g, r, a, bpp=bpp)
         assert uut[0] == b
         if bpp >= 2:
             assert uut[1] == g
@@ -172,6 +172,13 @@ class TestTGAColor:
         assert TGAColor(1, 2) is TGAColor(1, 2)
         assert TGAColor(1) is TGAColor(1)
         assert TGAColor() is TGAColor()
+
+    def test_caching_auto_bpp(self: Self) -> None:
+        assert TGAColor(1, 2, 3, 4) is TGAColor(1, 2, 3, 4, bpp=4)
+        assert TGAColor(1, 2, 3) is TGAColor(1, 2, 3, bpp=3)
+        assert TGAColor(1, 2) is TGAColor(1, 2, bpp=2)
+        assert TGAColor(1) is TGAColor(1, bpp=1)
+        assert TGAColor() is TGAColor(0, bpp=1)
 
     def test_string(self: Self, subtests: pytest.Subtests) -> None:
         with subtests.test("Full Constructor"):

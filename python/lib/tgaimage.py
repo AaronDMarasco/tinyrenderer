@@ -42,16 +42,53 @@ TGAHeader: Final[dtype] = dtype(
 )
 
 
-@cache
 def TGAColor(
     b: int | None = None,
     g: int | None = None,
     r: int | None = None,
     a: int | None = None,
     *,
-    bpp: uint8_t | None = None,
+    bpp: int | None = None,
 ) -> TGAColor_t:
     """Factory helper function that caches since they are immutable"""
+    # The bpp logic is here to fix caching of specified or not...
+    # Special case: Default constructor is (b=0, bpp=1)
+    if (b, g, r, a, bpp) == (None,) * 5:
+        b = 0
+        # bpp = 1
+
+    bpp_: uint8_t
+    if bpp is None:
+        match (g, r, a):
+            case (None, None, None):
+                bpp_ = uint8_t(1)
+            case (_, None, None):
+                bpp_ = uint8_t(2)
+            case (_, _, None):
+                bpp_ = uint8_t(3)
+            case (_, _, _):
+                bpp_ = uint8_t(4)
+            case _:
+                raise ValueError("BPP shenanigans?")
+    else:
+        bpp_ = uint8_t(bpp)
+
+    return _TGAColor_factory(bpp_, b, g, r, a)
+
+
+@cache
+def _TGAColor_factory(
+    bpp: uint8_t,
+    b: int | None = None,
+    g: int | None = None,
+    r: int | None = None,
+    a: int | None = None,
+) -> TGAColor_t:
+    """
+    Factory helper function that caches since they are immutable
+
+    NOTE: The caching can NOT recognize that TGAColor(1) == TGAColor(1, bpp=1)!
+    """
     return TGAColor_t(b, g, r, a, bpp=bpp)
 
 
@@ -75,20 +112,8 @@ class TGAColor_t:
         *,
         bpp: uint8_t | None = None,
     ) -> None:
-        # Special case: Default constructor is (b=0, bpp=1)
-        if (b, g, r, a, bpp) == (None,) * 5:
-            b = 0
-
         if bpp is None:
-            match (g, r, a):
-                case (None, None, None):
-                    bpp = uint8_t(1)
-                case (_, None, None):
-                    bpp = uint8_t(2)
-                case (_, _, None):
-                    bpp = uint8_t(3)
-                case (_, _, _):
-                    bpp = uint8_t(4)
+            raise ValueError("BPP shenanigans?")
         if not (1 <= bpp <= 4):
             raise ValueError(f"Invalid BPP={bpp}!")
 
@@ -138,11 +163,11 @@ class TGAColor_t:
             warn(f"Possibly bad read of {ld} bytes at {bpp} bpp = remainder {ld % bpp}", stacklevel=2)
 
         if bpp == 1:  # Grayscale
-            return [TGAColor(b=v, bpp=uint8_t(1)) for v in data]
+            return [TGAColor(b=v, bpp=1) for v in data]
         if bpp == 3:  # RGB
-            return [TGAColor(b=b, g=g, r=r, bpp=uint8_t(3)) for (b, g, r) in batched(data, 3)]
+            return [TGAColor(b=b, g=g, r=r, bpp=3) for (b, g, r) in batched(data, 3)]
         if bpp == 4:  # RGBA
-            return [TGAColor(b=b, g=g, r=r, a=a, bpp=uint8_t(4)) for (b, g, r, a) in batched(data, 4)]
+            return [TGAColor(b=b, g=g, r=r, a=a, bpp=4) for (b, g, r, a) in batched(data, 4)]
         raise NotImplementedError(f"Cannot handle {bpp} BPP")
 
 
