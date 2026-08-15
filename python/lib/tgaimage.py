@@ -276,7 +276,6 @@ class TGAImage:
         self.npdata = np.flipud(self.npdata)
 
     def get(self: Self, x: int, y: int) -> TGAColor_t:
-        # TODO: Test this compared to what the C++ library does?
         return self.npdata[y, x]
 
     def set(self: Self, x: int, y: int, c: TGAColor_t) -> None:
