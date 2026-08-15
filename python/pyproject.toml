@@ -5,7 +5,6 @@ description = "Python port of https://haqr.eu/tinyrenderer/"
 readme = "../README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "friendly>=0.7.21",
     "numpy>=2.5.1",
 ]
 

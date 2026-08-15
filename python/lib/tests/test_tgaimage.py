@@ -7,7 +7,6 @@ from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import Final, NamedTuple, Self
 
-import friendly
 import numpy as np
 import pytest
 from hypothesis import assume, given
@@ -16,7 +15,6 @@ from hypothesis import strategies as st
 from ..tgaimage import TGAColor, TGAColor_t, TGAImage, uint8_t
 
 valid_uint8_t = st.integers(0, 255)
-friendly.install()
 
 
 class GoldenFile(NamedTuple):
