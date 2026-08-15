@@ -17,87 +17,30 @@ uint8_t: TypeAlias = np.uint8
 uint16_t: TypeAlias = np.uint16
 
 
+__all__ = ["TGAColor", "TGAColor_from_raw", "TGAHeader", "TGAImage", "uint8_t", "uint16_t"]
+
+
 # Utility from itertools documentation
-def grouper(iterable, n):
+def _grouper(iterable, n):
     """Collect data into non-overlapping fixed-length chunks or blocks."""
     iterators = [iter(iterable)] * n
     return zip(*iterators, strict=True)
 
 
-TGAHeader: Final[dtype] = dtype(
-    [
-        ("idlength", uint8_t),
-        ("colormaptype", uint8_t),
-        ("datatypecode", uint8_t),
-        ("colormaporigin", uint16_t),
-        ("colormaplength", uint16_t),
-        ("colormapdepth", uint8_t),
-        ("x_origin", uint16_t),
-        ("y_origin", uint16_t),
-        ("width", uint16_t),
-        ("height", uint16_t),
-        ("bitsperpixel", uint8_t),
-        ("imagedescriptor", uint8_t),
-    ]
-)
-
-
-def TGAColor(
-    b: int | None = None,
-    g: int | None = None,
-    r: int | None = None,
-    a: int | None = None,
-    *,
-    bpp: int | None = None,
-) -> TGAColor_t:
-    """Factory helper function that caches since they are immutable"""
-    # The bpp logic is here to fix caching of specified or not...
-    # Special case: Default constructor is (b=0, bpp=1)
-    if (b, g, r, a, bpp) == (None,) * 5:
-        b = 0
-
-    bpp_: uint8_t
-    if bpp is None:
-        match (g, r, a):
-            case (None, None, None):
-                bpp_ = uint8_t(1)
-            case (_, None, None):
-                bpp_ = uint8_t(2)
-            case (_, _, None):
-                bpp_ = uint8_t(3)
-            case (_, _, _):
-                bpp_ = uint8_t(4)
-            case _:
-                raise ValueError("BPP shenanigans?")
-    else:
-        bpp_ = uint8_t(bpp)
-
-    return _TGAColor_factory(bpp_, b, g, r, a)
-
-
-@cache
-def _TGAColor_factory(
-    bpp: uint8_t,
-    b: int | None = None,
-    g: int | None = None,
-    r: int | None = None,
-    a: int | None = None,
-) -> TGAColor_t:
-    return TGAColor_t(b, g, r, a, bpp=bpp)
-
-
-def TGAColor_from_raw(data: bytes, *, bpp: int) -> list[TGAColor_t]:
-    """Factory helper - take bytes and get a list of TGAColors"""
-    if (ld := len(data)) % bpp:
-        warn(f"Possibly bad read of {ld} bytes at {bpp} bpp = remainder {ld % bpp}", stacklevel=2)
-
-    if bpp == 1:  # Grayscale
-        return [TGAColor(b=v, bpp=1) for v in data]
-    if bpp == 3:  # RGB
-        return [TGAColor(b=b, g=g, r=r, bpp=3) for (b, g, r) in batched(data, 3)]
-    if bpp == 4:  # RGBA
-        return [TGAColor(b=b, g=g, r=r, a=a, bpp=4) for (b, g, r, a) in batched(data, 4)]
-    raise NotImplementedError(f"Cannot handle {bpp} BPP")
+TGAHeader: Final[dtype] = dtype([
+    ("idlength", uint8_t),
+    ("colormaptype", uint8_t),
+    ("datatypecode", uint8_t),
+    ("colormaporigin", uint16_t),
+    ("colormaplength", uint16_t),
+    ("colormapdepth", uint8_t),
+    ("x_origin", uint16_t),
+    ("y_origin", uint16_t),
+    ("width", uint16_t),
+    ("height", uint16_t),
+    ("bitsperpixel", uint8_t),
+    ("imagedescriptor", uint8_t),
+])
 
 
 @dataclass(slots=True)
@@ -139,11 +82,6 @@ class TGAColor_t:
     def __setitem__(self: Self, idx: int, val: uint8_t) -> None:
         raise FrozenInstanceError
 
-    def __bytes__(self: Self) -> bytes:
-        if self._byte_data is None:
-            self._byte_data = b"".join(c.to_bytes() for c in self._data)
-        return self._byte_data
-
     def __hash__(self: Self) -> int:
         return hash(self._data)
 
@@ -159,6 +97,69 @@ class TGAColor_t:
                 res.append(f"a={self[3]}")
             self._repr = "TGAColor_t(" + ", ".join(res) + f", bpp={self.bytespp})"
         return self._repr
+
+    def __bytes__(self: Self) -> bytes:
+        if self._byte_data is None:
+            self._byte_data = b"".join(c.to_bytes() for c in self._data)
+        return self._byte_data
+
+
+@cache
+def _TGAColor_factory(
+    bpp: uint8_t,
+    b: int | None = None,
+    g: int | None = None,
+    r: int | None = None,
+    a: int | None = None,
+) -> TGAColor_t:
+    return TGAColor_t(b, g, r, a, bpp=bpp)
+
+
+def TGAColor(
+    b: int | None = None,
+    g: int | None = None,
+    r: int | None = None,
+    a: int | None = None,
+    *,
+    bpp: int | None = None,
+) -> TGAColor_t:
+    """Factory helper function that caches since they are immutable"""
+    # The bpp logic is here to fix caching of specified or not...
+    # Special case: Default constructor is (b=0, bpp=1)
+    if (b, g, r, a, bpp) == (None,) * 5:
+        b = 0
+
+    bpp_: uint8_t
+    if bpp is None:
+        match (g, r, a):
+            case (None, None, None):
+                bpp_ = uint8_t(1)
+            case (_, None, None):
+                bpp_ = uint8_t(2)
+            case (_, _, None):
+                bpp_ = uint8_t(3)
+            case (_, _, _):
+                bpp_ = uint8_t(4)
+            case _:
+                raise ValueError("BPP shenanigans?")
+    else:
+        bpp_ = uint8_t(bpp)
+
+    return _TGAColor_factory(bpp_, b, g, r, a)
+
+
+def TGAColor_from_raw(data: bytes, *, bpp: int) -> list[TGAColor_t]:
+    """Factory helper - take bytes and get a list of TGAColors"""
+    if (ld := len(data)) % bpp:
+        warn(f"Possibly bad read of {ld} bytes at {bpp} bpp = remainder {ld % bpp}", stacklevel=2)
+
+    if bpp == 1:  # Grayscale
+        return [TGAColor(b=v, bpp=1) for v in data]
+    if bpp == 3:  # RGB
+        return [TGAColor(b=b, g=g, r=r, bpp=3) for (b, g, r) in batched(data, 3)]
+    if bpp == 4:  # RGBA
+        return [TGAColor(b=b, g=g, r=r, a=a, bpp=4) for (b, g, r, a) in batched(data, 4)]
+    raise NotImplementedError(f"Cannot handle {bpp} BPP")
 
 
 TI = TypeVar("TI", bound="TGAImage")
@@ -209,7 +210,7 @@ class TGAImage:
             # trailing = raw_data[data_size:]
             # Truncate it
             raw_data = raw_data[:data_size]
-        pixels = [x for x in grouper(TGAColor_from_raw(raw_data, bpp=bpp), w)]
+        pixels = [x for x in _grouper(TGAColor_from_raw(raw_data, bpp=bpp), w)]
         res.npdata = np.array(pixels)
         assert res.npdata.shape == (h, w), f"Re-shaping error? {(h, w)=} vs. {res.npdata.shape}"
         if not (imgd & 0x20):
@@ -219,6 +220,10 @@ class TGAImage:
             res.flip_horizontally()
             res.was_hflipped = True
         return res
+
+    @property
+    def _raw_payload(self: Self) -> bytes:
+        return b"".join(bytes(c) for c in self.npdata.flat)
 
     def write_tga_file(self: Self, filename: str | Path, vflip: bool = True, rle: bool = True) -> None:
         developer_area_ref: Final[bytes] = b"\0\0\0\0"
@@ -301,7 +306,3 @@ class TGAImage:
                     res.write(bytes(flat_data[current_pixel]))
                 current_pixel += run_length
             return res.getvalue()
-
-    @property
-    def _raw_payload(self: Self) -> bytes:
-        return b"".join(bytes(c) for c in self.npdata.flat)
