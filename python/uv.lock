@@ -522,6 +522,18 @@ wheels = [
 ]
 
 [[package]]
+name = "ssort"
+version = "0.17.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pathspec" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1a/6d/635cb5cf18f84f514ff085d7856bbc293f4671e00c29b6648221106ead48/ssort-0.17.0.tar.gz", hash = "sha256:acfb38409476520c3e25541c282f7cef92017900d859f6b12bea48da4334b194", size = 23363, upload-time = "2026-08-03T12:06:45.674Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/82/0b/ba965b79d65aecf00b12e8de7c98a46f62d2c575f55b576105010b152ef4/ssort-0.17.0-py3-none-any.whl", hash = "sha256:acb57f75cf9521d80a3cf1572ad4cdb969b28d08d8c4c08957c91517c5dd5d93", size = 27799, upload-time = "2026-08-03T12:06:44.581Z" },
+]
+
+[[package]]
 name = "stack-data"
 version = "0.6.3"
 source = { registry = "https://pypi.org/simple" }
@@ -552,6 +564,7 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
     { name = "snakeviz" },
+    { name = "ssort" },
 ]
 
 [package.metadata]
@@ -568,6 +581,7 @@ dev = [
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "ruff", specifier = ">=0.16.1" },
     { name = "snakeviz", specifier = ">=2.2.2" },
+    { name = "ssort", specifier = ">=0.17.0" },
 ]
 
 [[package]]

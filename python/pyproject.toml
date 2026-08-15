@@ -17,11 +17,15 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.16.1",
     "snakeviz>=2.2.2",
+    "ssort>=0.17.0",
 ]
 
 [tool.ruff]
 line-length = 120
 # output-prefer-rule-codes = true
+
+[tool.ruff.format]
+preview = true
 
 [tool.ruff.lint]
 select = [
@@ -37,9 +41,10 @@ select = [
     "SIM",
     # isort
     "I",
+    "RUF",
 ]
 ignore = ["UP040"]
-
+preview = true
 
 # [tool.mypy]
 # plugins = ["numpy.typing.mypy_plugin", ]
