@@ -99,7 +99,8 @@ class TestTGAColor:
             uut = TGAColor(bpp=uint8_t(5))
         for bpp in range(1, 5):
             with subtests.test(bpp=bpp):
-                uut = TGAColor(bpp=uint8_t(bpp))
+                vals = [0] * bpp
+                uut = TGAColor(*vals, bpp=uint8_t(bpp))
                 with pytest.raises(IndexError):
                     uut[-(bpp + 1)]
                 with pytest.raises(IndexError):
@@ -153,6 +154,12 @@ class TestTGAColor:
                         assert uut[2] == r
                         assert uut[3] == a
 
+    def test_auto_bpp(self: Self) -> None:
+        assert TGAColor(1, 2, 3, 4).bytespp == 4
+        assert TGAColor(1, 2, 3).bytespp == 3
+        assert TGAColor(1, 2).bytespp == 2
+        assert TGAColor(1).bytespp == 1
+
     def test_equal(self: Self) -> None:
         assert TGAColor(1, 2, 3, 4) == TGAColor(1, 2, 3, 4)
 
@@ -161,12 +168,36 @@ class TestTGAColor:
 
     def test_caching(self: Self) -> None:
         assert TGAColor(1, 2, 3, 4) is TGAColor(1, 2, 3, 4)
+        assert TGAColor(1, 2, 3) is TGAColor(1, 2, 3)
+        assert TGAColor(1, 2) is TGAColor(1, 2)
+        assert TGAColor(1) is TGAColor(1)
+        assert TGAColor() is TGAColor()
 
-    def test_string(self: Self) -> None:
-        assert repr(TGAColor(1, 2, 3, 4, bpp=4)) == "TGAColor_t(b=1, g=2, r=3, a=4, bpp=4)"
-        assert repr(TGAColor(1, 2, 3, bpp=3)) == "TGAColor_t(b=1, g=2, r=3, bpp=3)"
-        assert repr(TGAColor(1, 2, bpp=2)) == "TGAColor_t(b=1, g=2, bpp=2)"
-        assert repr(TGAColor(1, bpp=1)) == "TGAColor_t(b=1, bpp=1)"
+    def test_string(self: Self, subtests: pytest.Subtests) -> None:
+        with subtests.test("Full Constructor"):
+            assert repr(TGAColor(1, 2, 3, 4, bpp=4)) == "TGAColor_t(b=1, g=2, r=3, a=4, bpp=4)"
+            assert repr(TGAColor(1, 2, 3, bpp=3)) == "TGAColor_t(b=1, g=2, r=3, bpp=3)"
+            assert repr(TGAColor(1, 2, bpp=2)) == "TGAColor_t(b=1, g=2, bpp=2)"
+            assert repr(TGAColor(1, bpp=1)) == "TGAColor_t(b=1, bpp=1)"
+        with subtests.test("Automatic BPP"):
+            assert repr(TGAColor(1, 2, 3, 4)) == "TGAColor_t(b=1, g=2, r=3, a=4, bpp=4)"
+            assert repr(TGAColor(1, 2, 3)) == "TGAColor_t(b=1, g=2, r=3, bpp=3)"
+            assert repr(TGAColor(1, 2)) == "TGAColor_t(b=1, g=2, bpp=2)"
+            assert repr(TGAColor(1)) == "TGAColor_t(b=1, bpp=1)"
+
+    def test_bad_kwargs(self: Self) -> None:
+        with pytest.raises(ValueError):
+            TGAColor(g=1)
+        with pytest.raises(ValueError):
+            TGAColor(r=1)
+        with pytest.raises(ValueError):
+            TGAColor(a=1)
+        with pytest.raises(ValueError):
+            TGAColor(b=None, g=1, r=1, a=1)
+        with pytest.raises(ValueError):
+            TGAColor(b=1, g=None, r=1, a=1)
+        with pytest.raises(ValueError):
+            TGAColor(b=1, g=1, r=None, a=1)
 
 
 @st.composite

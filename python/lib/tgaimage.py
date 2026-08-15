@@ -43,11 +43,20 @@ TGAHeader: Final[dtype] = dtype(
 
 
 @cache
-def TGAColor(b: int = 0, g: int = 0, r: int = 0, a: int = 0, *, bpp: uint8_t | None = None) -> TGAColor_t:
+def TGAColor(
+    b: int | None = None,
+    g: int | None = None,
+    r: int | None = None,
+    a: int | None = None,
+    *,
+    bpp: uint8_t | None = None,
+) -> TGAColor_t:
+    """Factory helper function that caches since they are immutable"""
     return TGAColor_t(b, g, r, a, bpp=bpp)
 
 
 def TGAColor_from_raw(data: bytes, *, bpp: int) -> list[TGAColor_t]:
+    """Factory helper - take bytes and get a list of TGAColors"""
     return TGAColor_t.from_raw(data, bpp=bpp)
 
 
@@ -57,13 +66,36 @@ class TGAColor_t:
     _byte_data: bytes | None = field(default=None, init=False)
     _repr: str | None = field(default=None, init=False)
 
-    def __init__(self: Self, b: int = 0, g: int = 0, r: int = 0, a: int = 0, *, bpp: uint8_t | None = None) -> None:
+    def __init__(
+        self: Self,
+        b: int | None = None,
+        g: int | None = None,
+        r: int | None = None,
+        a: int | None = None,
+        *,
+        bpp: uint8_t | None = None,
+    ) -> None:
+        # Special case: Default constructor is (b=0, bpp=1)
+        if (b, g, r, a, bpp) == (None,) * 5:
+            b = 0
+
         if bpp is None:
-            bpp = uint8_t(4)
+            match (g, r, a):
+                case (None, None, None):
+                    bpp = uint8_t(1)
+                case (_, None, None):
+                    bpp = uint8_t(2)
+                case (_, _, None):
+                    bpp = uint8_t(3)
+                case (_, _, _):
+                    bpp = uint8_t(4)
         if not (1 <= bpp <= 4):
             raise ValueError(f"Invalid BPP={bpp}!")
 
-        self._data = (b, g, r, a)[:bpp]
+        # I hate to ignore type checking, but we check right after it will not have None...
+        self._data = (b, g, r, a)[:bpp]  # type: ignore[assignment]
+        if None in self._data:
+            raise ValueError("Out-of-order None in constructor!")
 
         # Cached responses:
         self._byte_data = None
