@@ -13,7 +13,7 @@ import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
 
-from ..tgaimage import TGAColor, TGAColor_t, TGAImage
+from ..tgaimage import TGAColor, TGAColor_t, TGAImage, uint8_t
 
 valid_uint8_t = st.integers(0, 255)
 friendly.install()
@@ -195,6 +195,12 @@ class TestTGAColor:
 
     def test_not_equal(self: Self) -> None:
         assert TGAColor(1, 2, 3, 4) != TGAColor(1, 2, 3, 3)
+
+    def test_frozen(self: Self) -> None:
+        uut = TGAColor(1, 2, 3, 4)
+        assert uut[1] == 2
+        with pytest.raises(AttributeError):
+            uut[1] = uint8_t(2)
 
     def test_string(self: Self, subtests: pytest.Subtests) -> None:
         with subtests.test("Full Constructor"):
