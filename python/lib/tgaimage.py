@@ -88,7 +88,16 @@ def _TGAColor_factory(
 
 def TGAColor_from_raw(data: bytes, *, bpp: int) -> list[TGAColor_t]:
     """Factory helper - take bytes and get a list of TGAColors"""
-    return TGAColor_t.from_raw(data, bpp=bpp)
+    if (ld := len(data)) % bpp:
+        warn(f"Possibly bad read of {ld} bytes at {bpp} bpp = remainder {ld % bpp}", stacklevel=2)
+
+    if bpp == 1:  # Grayscale
+        return [TGAColor(b=v, bpp=1) for v in data]
+    if bpp == 3:  # RGB
+        return [TGAColor(b=b, g=g, r=r, bpp=3) for (b, g, r) in batched(data, 3)]
+    if bpp == 4:  # RGBA
+        return [TGAColor(b=b, g=g, r=r, a=a, bpp=4) for (b, g, r, a) in batched(data, 4)]
+    raise NotImplementedError(f"Cannot handle {bpp} BPP")
 
 
 @dataclass(slots=True)
@@ -107,18 +116,18 @@ class TGAColor_t:
         bpp: uint8_t | None = None,
     ) -> None:
         if bpp is None:
-            raise ValueError("BPP shenanigans?")
+            raise ValueError("BPP shenanigans? Wrappers should have set this!")
         if not (1 <= bpp <= 4):
             raise ValueError(f"Invalid BPP={bpp}!")
 
-        # I hate to ignore type checking, but we check right after it will not have None...
+        # I hate to ignore type checking, but we ensure right after that it will not have None...
         self._data = (b, g, r, a)[:bpp]  # type: ignore[assignment]
         if None in self._data:
             raise ValueError("Out-of-order None in constructor!")
 
         # Cached responses:
-        self._byte_data = None
-        self._repr = None
+        self._byte_data = None  # __bytes__
+        self._repr = None  # __repr__
 
     @property
     def bytespp(self: Self) -> int:
@@ -150,19 +159,6 @@ class TGAColor_t:
                 res.append(f"a={self[3]}")
             self._repr = "TGAColor_t(" + ", ".join(res) + f", bpp={self.bytespp})"
         return self._repr
-
-    @staticmethod
-    def from_raw(data: bytes, *, bpp: int) -> list[TGAColor_t]:
-        if (ld := len(data)) % bpp:
-            warn(f"Possibly bad read of {ld} bytes at {bpp} bpp = remainder {ld % bpp}", stacklevel=2)
-
-        if bpp == 1:  # Grayscale
-            return [TGAColor(b=v, bpp=1) for v in data]
-        if bpp == 3:  # RGB
-            return [TGAColor(b=b, g=g, r=r, bpp=3) for (b, g, r) in batched(data, 3)]
-        if bpp == 4:  # RGBA
-            return [TGAColor(b=b, g=g, r=r, a=a, bpp=4) for (b, g, r, a) in batched(data, 4)]
-        raise NotImplementedError(f"Cannot handle {bpp} BPP")
 
 
 TI = TypeVar("TI", bound="TGAImage")
