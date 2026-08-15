@@ -314,7 +314,7 @@ class TestTGAImage:
 
     def test_raw_empty(self: Self) -> None:
         uut = TGAImage(h=5, w=3)
-        assert uut.npdata.tolist() == [[TGAColor()] * 3] * 5
+        assert uut.npdata.tolist() == [[uut.fill_value] * 3] * 5
 
     def test_raw_fill(self: Self) -> None:
         uut = TGAImage(h=5, w=3, c=TGAColor(1, 2, 3, 4))
@@ -343,9 +343,9 @@ class TestTGAImage:
         w = w if w else 1
         uut = TGAImage(w=w, h=h)
         color = TGAColor(1, 2, 3, 4)
-        assert uut.get(0, 0) == TGAColor()
+        assert uut.get(0, 0) == uut.fill_value
         uut.set(x, y, color)
-        assert uut.get(x, y) != TGAColor()
+        assert uut.get(x, y) != uut.fill_value
         assert uut.get(x, y) == color
 
     def test_vertical_flip(self: Self) -> None:

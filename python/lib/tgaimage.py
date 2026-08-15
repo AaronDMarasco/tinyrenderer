@@ -58,6 +58,10 @@ class TGAColor_t:
         *,
         bpp: uint8_t | None = None,
     ) -> None:
+        # Cached responses:
+        self._byte_data = None  # __bytes__
+        self._repr = None  # __repr__
+
         if bpp is None:
             raise ValueError("BPP shenanigans? Wrappers should have set this!")
         if not (1 <= bpp <= 4):
@@ -66,15 +70,20 @@ class TGAColor_t:
         # I hate to ignore type checking, but we ensure right after that it will not have None...
         self._data = (b, g, r, a)[:bpp]  # type: ignore[assignment]
         if None in self._data:
-            raise ValueError("Out-of-order None in constructor!")
-
-        # Cached responses:
-        self._byte_data = None  # __bytes__
-        self._repr = None  # __repr__
+            err_msg = f"Out-of-order None in constructor! ({b=} {g=} {r=} {a=} {bpp=})"
+            raise ValueError(err_msg)
 
     @property
     def bytespp(self: Self) -> int:
         return len(self._data)
+
+    def resize(self: Self, bpp: int | uint8_t) -> TGAColor_t:
+        """Converts to a new pixel with a lower BPP"""
+        # TODO: Better algorithm if RGB => Mono? Average maybe?
+        if bpp > self.bytespp:
+            err_msg = f"Asked to increase BPP from {self.bytespp} to {bpp} and don't know how!"
+            raise ValueError(err_msg)
+        return TGAColor(*(self._data[:bpp]), bpp=int(bpp))
 
     def __getitem__(self: Self, idx: int) -> uint8_t:
         return uint8_t(self._data[idx])
@@ -87,15 +96,19 @@ class TGAColor_t:
 
     def __repr__(self: Self) -> str:
         if self._repr is None:
-            bpp = self.bytespp
-            res = [f"b={self[0]}"]
-            if bpp >= 2:
-                res.append(f"g={self[1]}")
-            if bpp >= 3:
-                res.append(f"r={self[2]}")
-            if bpp == 4:
-                res.append(f"a={self[3]}")
-            self._repr = "TGAColor_t(" + ", ".join(res) + f", bpp={self.bytespp})"
+            try:
+                bpp = self.bytespp
+                res = [f"b={self[0]}"]
+                if bpp >= 2:
+                    res.append(f"g={self[1]}")
+                if bpp >= 3:
+                    res.append(f"r={self[2]}")
+                if bpp == 4:
+                    res.append(f"a={self[3]}")
+                self._repr = "TGAColor_t(" + ", ".join(res) + f", bpp={self.bytespp})"
+            except Exception:
+                return f"TGAColor_t(NOT FULLY INITIALIZED @ {hex(id(self))})"
+
         return self._repr
 
     def __bytes__(self: Self) -> bytes:
@@ -177,8 +190,8 @@ class TGAImage:
         self.width = w
         self.height = h
         self.bpp: uint8_t = uint8_t(bpp)
-        fill_value = c if c is not None else TGAColor()
-        self.npdata: np.ndarray = np.full(shape=(h, w), fill_value=fill_value)
+        self.fill_value = c if c is not None else TGAColor(*([0] * bpp), bpp=bpp)
+        self.npdata: np.ndarray = np.full(shape=(h, w), fill_value=self.fill_value)
 
         # These are pretty much for testing purposes only:
         self.was_hflipped = False
@@ -225,7 +238,21 @@ class TGAImage:
     def _raw_payload(self: Self) -> bytes:
         return b"".join(bytes(c) for c in self.npdata.flat)
 
+    def verify(self: Self) -> None:
+        """Checks that all pixels are the right size"""
+        # Generically named if we want to add other verification later
+        errs: list[str] = []
+        # Check pixels have correct BPP:
+        all_bytespp: Final = np.vectorize(lambda x: x.bytespp)(self.npdata)
+        for bad_bpp in np.argwhere(all_bytespp != self.bpp).tolist():
+            # Internally addressed as (y, x) so swap in report
+            errs.append(f"Pixel (x, y)={bad_bpp[1], bad_bpp[0]} has bytespp={all_bytespp[*bad_bpp]} not {self.bpp}")
+        if errs:
+            err_msg = f"{len(errs)} verification errors!\n" + "\n".join(errs)
+            raise ValueError(err_msg)
+
     def write_tga_file(self: Self, filename: str | Path, vflip: bool = True, rle: bool = True) -> None:
+        self.verify()
         developer_area_ref: Final[bytes] = b"\0\0\0\0"
         extension_area_ref: Final[bytes] = b"\0\0\0\0"
         footer: Final[bytes] = b"TRUEVISION-XFILE.\0"
@@ -253,6 +280,14 @@ class TGAImage:
         return self.npdata[y, x]
 
     def set(self: Self, x: int, y: int, c: TGAColor_t) -> None:
+        if c.bytespp != self.bpp:
+            old = c
+            try:
+                c = c.resize(self.bpp)
+            except Exception as err:
+                err_msg = f"Pixel write at ({x}, {y}) {c} failed resizing to bpp={self.bpp}"
+                raise ValueError(err_msg) from err
+            warn(f"Pixel write at ({x}, {y}) changed bpp: was {old} now {c}", stacklevel=2)
         self.npdata[y, x] = c
 
     def load_rle_data(self: Self, in_: bytes) -> bytes:
