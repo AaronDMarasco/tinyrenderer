@@ -55,7 +55,6 @@ def TGAColor(
     # Special case: Default constructor is (b=0, bpp=1)
     if (b, g, r, a, bpp) == (None,) * 5:
         b = 0
-        # bpp = 1
 
     bpp_: uint8_t
     if bpp is None:
@@ -84,11 +83,6 @@ def _TGAColor_factory(
     r: int | None = None,
     a: int | None = None,
 ) -> TGAColor_t:
-    """
-    Factory helper function that caches since they are immutable
-
-    NOTE: The caching can NOT recognize that TGAColor(1) == TGAColor(1, bpp=1)!
-    """
     return TGAColor_t(b, g, r, a, bpp=bpp)
 
 
