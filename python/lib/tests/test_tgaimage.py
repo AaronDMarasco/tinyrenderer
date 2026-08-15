@@ -1,6 +1,7 @@
 #!/bin/env python
 from __future__ import annotations
 
+import os
 import sys
 from collections.abc import Callable, Generator
 from pathlib import Path
@@ -283,7 +284,7 @@ class TestTGAImage:
         uut.flip_horizontally()
         assert np.array_equal(uut.npdata, np.array(self.GRADIENT))
 
-    # @pytest.mark.skip()
+    @pytest.mark.skipif(bool(os.getenv("QUICK_CHECK")), reason="QUICK_CHECK")
     def test_good_files(self: Self, file_suite: GoldenFile) -> None:
         TestTGAImage.skip_missing(file_suite.path)
         uut = TGAImage.read_tga_file(file_suite.path)
@@ -313,7 +314,7 @@ class TestTGAImage:
         uut = TGAImage(h=5, w=3, c=TGAColor(1, 2, 3, 4))
         assert uut.npdata.tolist() == [[TGAColor(1, 2, 3, 4)] * 3] * 5
 
-    # @pytest.mark.skip()
+    @pytest.mark.skipif(bool(os.getenv("QUICK_CHECK")), reason="QUICK_CHECK")
     def test_rle_unrle(self: Self, subtests: pytest.Subtests, file_suite: GoldenFile) -> None:
         # Sometimes the raw RLE didn't match, but the re-expanded matches...
         TestTGAImage.skip_missing(file_suite.path)
@@ -352,7 +353,7 @@ class TestTGAImage:
                 golden[col, row] = c
         assert np.array_equal(uut.npdata, golden)
 
-    # @pytest.mark.skip()
+    @pytest.mark.skipif(bool(os.getenv("QUICK_CHECK")), reason="QUICK_CHECK")
     @pytest.mark.parametrize("vflip", [False, True], ids=["no_vflip", "vflip"])
     @pytest.mark.parametrize("rle", [False, True], ids=["no_rle", "rle"])
     def test_write_file(

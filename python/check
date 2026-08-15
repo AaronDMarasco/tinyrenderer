@@ -1,5 +1,6 @@
 #!/bin/bash
 clear
+# export QUICK_CHECK=x
 set -e
 uv --preview-features format format -- --line-length 120
 uv run ssort --check --diff
