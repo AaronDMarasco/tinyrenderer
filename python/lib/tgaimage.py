@@ -236,6 +236,7 @@ class TGAImage:
 
     @property
     def _raw_payload(self: Self) -> bytes:
+        self.verify()
         return b"".join(bytes(c) for c in self.npdata.flat)
 
     def verify(self: Self) -> None:
