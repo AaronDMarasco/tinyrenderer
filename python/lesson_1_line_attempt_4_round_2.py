@@ -22,7 +22,7 @@ def line(ax: int, ay: int, bx: int, by: int, framebuffer: TGAImage, color: TGACo
     if ax > bx:  # make it left-to-right
         ax, bx = bx, ax
         ay, by = by, ay
-    y: int = ay
+    y: float = ay
     error: float = 0.0
     if bx == ax:  # BUG: C++ allowed the div by zero here?
         bx += 1
@@ -41,10 +41,11 @@ def line(ax: int, ay: int, bx: int, by: int, framebuffer: TGAImage, color: TGACo
             error -= 1.;
         }
         """
-        error += abs(by-ay)/(bx-ax)
-        if error  > 0.5:
+        error += abs(by - ay) / (bx - ax)
+        if error > 0.5:
             y += 1 if by > ay else -1
             error -= 1
+
 
 def main() -> int:
     width: Final = 64

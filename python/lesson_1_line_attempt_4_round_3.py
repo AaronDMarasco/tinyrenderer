@@ -23,28 +23,19 @@ def line(ax: int, ay: int, bx: int, by: int, framebuffer: TGAImage, color: TGACo
         ax, bx = bx, ax
         ay, by = by, ay
     y: int = ay
-    error: float = 0.0
-    if bx == ax:  # BUG: C++ allowed the div by zero here?
-        bx += 1
-    y_inc: Final = (by - ay) / (bx - ax)
+    error: int = 0
+    error_inc: Final[int] = 2 * (bx - ax)
+    # No more division, so no more divide by zero
     for x in range(ax, min(bx + 1, framebuffer.width)):
-        y += y_inc
-        fixed_y = min(round(y), framebuffer.height - 1)
         if steep:  # if transposed, de-transpose
-            framebuffer.set(fixed_y, x, color)
+            framebuffer.set(y, x, color)
         else:
-            framebuffer.set(x, fixed_y, color)
-        _CPP_SOURCE = """
-        error += std::abs(by-ay)/static_cast<float>(bx-ax);
-        if (error>.5) {
-            y += by > ay ? 1 : -1;
-            error -= 1.;
-        }
-        """
-        error += abs(by-ay)/(bx-ax)
-        if error  > 0.5:
+            framebuffer.set(x, y, color)
+        error += 2 * abs(by - ay)
+        if error > (bx - ax):
             y += 1 if by > ay else -1
-            error -= 1
+            error -= error_inc
+
 
 def main() -> int:
     width: Final = 64
@@ -53,7 +44,7 @@ def main() -> int:
     framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
 
     rng = np.random.default_rng()  # seed=42)
-    for _ in range(1 << 18):  # 4.6s (even worse!)
+    for _ in range(1 << 18):  # 3.4s (was 3.7s in original)
         ax = int(rng.integers(width))
         ay = int(rng.integers(width))
         bx = int(rng.integers(width))
