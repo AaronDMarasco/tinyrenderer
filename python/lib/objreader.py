@@ -1,11 +1,10 @@
 # TODO: Some testing would be nice...
-# The OBJ file seems to have comments with the counts of each type it should see?
 
 from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final, Self
 
@@ -36,27 +35,6 @@ class OBJ_Vertex:
     z: float
 
 
-@dataclass(slots=True)
-class OBJ_Data:
-    faces: list[OBJ_Face]
-    vertices: list[OBJ_Vertex]
-
-    def __init__(self: Self) -> None:
-        # Insert a dummy vertex point to make everything 1-based to match face's vertex index
-        # TODO: Consider better interfaces like to pre-size the list, etc?
-        self.faces = []
-        self.vertices = [OBJ_Vertex(0, 0, 0)]
-
-    def add_face(self: Self, face: OBJ_Face) -> None:
-        self.faces.append(face)
-
-    def add_vertex(self: Self, vertex: OBJ_Vertex) -> None:
-        self.vertices.append(vertex)
-
-    def __str__(self: Self) -> str:
-        return f"OBJ_Data({hex(id(self))}) with {len(self.faces)} face(s) and {len(self.vertices) - 1} vert(ex|ices)"
-
-
 FLOATING_RE: Final = r"-?\d+(?:\.\d+)?"
 VERTEX_RE: Final = re.compile(rf"^v\s+(?P<x>{FLOATING_RE})\s+(?P<y>{FLOATING_RE})\s+(?P<z>{FLOATING_RE})\s*$")
 SINGLE_FACE_RE: Final = r"(?P<vertex_XXX>\d+)/(?P<texture_XXX>\d+)/(?P<normal_XXX>\d+)"
@@ -66,22 +44,112 @@ FACE_RE: Final = re.compile(
     rf"{SINGLE_FACE_RE.replace('XXX', '1')}\s+"
     rf"{SINGLE_FACE_RE.replace('XXX', '2')}\s*$"
 )
+V_NORMAL_RE: Final = re.compile(
+    VERTEX_RE.pattern.replace("^v", "^vn")
+)  # re.compile(rf"^vn\s+(?P<v0>{FLOATING_RE})\s+(?P<v1>{FLOATING_RE})\s+(?P<v2>{FLOATING_RE})\s*$")
+TEXTURE_V_RE: Final = re.compile(VERTEX_RE.pattern.replace("^v", "^vt"))
 
 
-def read_obj_file(infile: str | Path) -> OBJ_Data:
-    res = OBJ_Data()
-    with open(infile, encoding="utf-8") as ifile:
-        for line_no, line in enumerate(ifile, 1):
-            if m := VERTEX_RE.match(line):
-                res.add_vertex(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
-            elif m := FACE_RE.match(line):
-                f0 = OBJ_Face_entry(vertex=int(m["vertex_0"]), texture=int(m["texture_0"]), normal=int(m["normal_0"]))
-                f1 = OBJ_Face_entry(vertex=int(m["vertex_1"]), texture=int(m["texture_1"]), normal=int(m["normal_1"]))
-                f2 = OBJ_Face_entry(vertex=int(m["vertex_2"]), texture=int(m["texture_2"]), normal=int(m["normal_2"]))
-                res.add_face(OBJ_Face((f0, f1, f2)))
-            elif line.strip() == "" or line.startswith("#"):
-                # Empty / comment
-                pass
-            else:
-                logger.debug("Could not interpret line %d: %s", line_no, line.rstrip())
-    return res
+@dataclass(init=True, slots=True)
+class OBJ_Data:
+    comments: list[str] = field(init=False, default_factory=list)
+    faces: list[OBJ_Face] = field(init=False, default_factory=list)
+    texture_vs: list[OBJ_Vertex] = field(init=False, default_factory=list)
+    unknowns: list[str] = field(init=False, default_factory=list)
+    # Insert a dummy vertex point to make everything 1-based to match face's vertex index:
+    vertices: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
+    v_normals: list[OBJ_Vertex] = field(init=False, default_factory=list)
+
+    def add_comment(self: Self, comment: str) -> None:
+        self.comments.append(comment)
+
+    def add_face(self: Self, face: OBJ_Face) -> None:
+        self.faces.append(face)
+
+    def add_texture_v(self: Self, vertex: OBJ_Vertex) -> None:
+        self.texture_vs.append(vertex)
+
+    def add_unknown(self: Self, string: str) -> None:
+        self.unknowns.append(string)
+
+    def add_vertex(self: Self, vertex: OBJ_Vertex) -> None:
+        self.vertices.append(vertex)
+
+    def add_v_normal(self: Self, vertex: OBJ_Vertex) -> None:
+        self.v_normals.append(vertex)
+
+    def verify(self: Self) -> None:
+        if not __debug__:
+            logger.warning("Assertions disabled; obj file cannot be verified")
+        for comment in self.comments:
+            match comment.split(maxsplit=2):
+                case ("#", count, "faces"):
+                    icount = int(count)
+                    assert (have := len(self.faces)) == icount, (  # noqa: RUF018
+                        f"Incorrect number of faces ({have=} expect={icount})"
+                    )
+                    logger.debug("Faces count confirmed (%d)", icount)
+                case ("#", count, "texture vertices"):
+                    icount = int(count)
+                    assert (have := len(self.texture_vs)) == icount, (  # noqa: RUF018
+                        f"Incorrect number of texture vertices ({have=} expect={icount})"
+                    )
+                    logger.debug("Texture vertex count confirmed (%d)", icount)
+                case ("#", count, "vertex normals"):
+                    icount = int(count)
+                    assert (have := len(self.v_normals)) == icount, (  # noqa: RUF018
+                        f"Incorrect number of vertex normals ({have=} expect={icount})"
+                    )
+                    logger.debug("Vertex normal count confirmed (%d)", icount)
+                case ("#", count, "vertices"):  # We insert a blank one
+                    icount = int(count)
+                    assert (have := len(self.vertices) - 1) == icount, (  # noqa: RUF018
+                        f"Incorrect number of vertices ({have=} expect={icount})"
+                    )
+                    logger.debug("Vertex count confirmed (%d)", icount)
+                case _:
+                    logger.debug("Could not parse comment: %s", comment)
+
+    @staticmethod
+    def from_file(infile: str | Path) -> OBJ_Data:
+        res = OBJ_Data()
+        with open(infile, encoding="utf-8") as ifile:
+            for line_no, line in enumerate(ifile, 1):
+                match line:
+                    case _ if line.strip() == "":
+                        # Blank line
+                        pass
+                    case _ if line.startswith("#"):
+                        res.add_comment(line.rstrip())
+                    case _ if m := FACE_RE.match(line):
+                        f0 = OBJ_Face_entry(
+                            vertex=int(m["vertex_0"]), texture=int(m["texture_0"]), normal=int(m["normal_0"])
+                        )
+                        f1 = OBJ_Face_entry(
+                            vertex=int(m["vertex_1"]), texture=int(m["texture_1"]), normal=int(m["normal_1"])
+                        )
+                        f2 = OBJ_Face_entry(
+                            vertex=int(m["vertex_2"]), texture=int(m["texture_2"]), normal=int(m["normal_2"])
+                        )
+                        res.add_face(OBJ_Face((f0, f1, f2)))
+                    case _ if m := TEXTURE_V_RE.match(line):
+                        res.add_texture_v(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
+                    case _ if m := VERTEX_RE.match(line):
+                        res.add_vertex(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
+                    case _ if m := V_NORMAL_RE.match(line):
+                        res.add_v_normal(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
+                    case _:
+                        logger.debug("Could not interpret line %d: %s", line_no, line.rstrip())
+                        res.add_unknown(line.rstrip())
+        logger.debug("Read OBJ file %s: %s", Path(infile).name, res)
+        res.verify()
+        return res
+
+    def __str__(self: Self) -> str:
+        return (
+            f"OBJ_Data({hex(id(self))}) with "
+            f"{len(self.faces)} face(s), "
+            f"{len(self.vertices) - 1} vert(ex|ices), "
+            f"{len(self.v_normals)} vertex normal(s), "
+            f"{len(self.texture_vs)} texture vert(ex|ices)"
+        )
