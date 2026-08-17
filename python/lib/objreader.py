@@ -69,7 +69,8 @@ class OBJ_Data:
     v_normals: list[OBJ_Vertex] = field(init=False, default_factory=list)
 
     def add_comment(self: Self, comment: str) -> None:
-        self.comments.append(comment)
+        for c in comment[1:].lstrip().split(","):  # Some are doubled up; remove # and split on ,
+            self.comments.append(c.strip())
 
     def add_face(self: Self, face: OBJ_Face) -> None:
         self.faces.append(face)
@@ -90,33 +91,33 @@ class OBJ_Data:
         if not __debug__:
             logger.warning("Assertions disabled; obj file cannot be verified")
         for comment in self.comments:
-            match comment.split(maxsplit=2):
-                case ("#", count, "faces"):
+            match comment.split(maxsplit=1):
+                case (count, "faces"):
                     icount = int(count)
                     assert (have := len(self.faces)) == icount, (  # noqa: RUF018
                         f"Incorrect number of faces ({have=} expect={icount})"
                     )
                     logger.debug("Faces count confirmed (%d)", icount)
-                case ("#", count, "texture vertices"):
+                case (count, "texture vertices") | (count, "coords texture"):  # Seems to be an alias?
                     icount = int(count)
                     assert (have := len(self.texture_vs)) == icount, (  # noqa: RUF018
                         f"Incorrect number of texture vertices ({have=} expect={icount})"
                     )
                     logger.debug("Texture vertex count confirmed (%d)", icount)
-                case ("#", count, "vertex normals"):
+                case (count, "vertex normals"):
                     icount = int(count)
                     assert (have := len(self.v_normals)) == icount, (  # noqa: RUF018
                         f"Incorrect number of vertex normals ({have=} expect={icount})"
                     )
                     logger.debug("Vertex normal count confirmed (%d)", icount)
-                case ("#", count, "vertices"):  # We insert a blank one
+                case (count, "vertices"):  # We insert a blank one
                     icount = int(count)
                     assert (have := len(self.vertices) - 1) == icount, (  # noqa: RUF018
                         f"Incorrect number of vertices ({have=} expect={icount})"
                     )
                     logger.debug("Vertex count confirmed (%d)", icount)
                 case _:
-                    logger.debug("Could not parse comment: %s", comment)
+                    logger.info("Could not parse comment: %s", comment)
 
     @staticmethod
     def from_file(infile: str | Path) -> OBJ_Data:
