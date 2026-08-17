@@ -8,6 +8,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final, Self
 
+from .render import line as render_line
+from .tgaimage import TGAColor, TGAColor_t, TGAImage
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
@@ -48,6 +51,7 @@ V_NORMAL_RE: Final = re.compile(
     VERTEX_RE.pattern.replace("^v", "^vn")
 )  # re.compile(rf"^vn\s+(?P<v0>{FLOATING_RE})\s+(?P<v1>{FLOATING_RE})\s+(?P<v2>{FLOATING_RE})\s*$")
 TEXTURE_V_RE: Final = re.compile(VERTEX_RE.pattern.replace("^v", "^vt"))
+_red3: Final[TGAColor_t] = TGAColor(0, 0, 255)
 
 
 @dataclass(init=True, slots=True)
@@ -144,6 +148,40 @@ class OBJ_Data:
         logger.debug("Read OBJ file %s: %s", Path(infile).name, res)
         res.verify()
         return res
+
+    def orthogonal_projection(
+        self: Self, *, width: int = 2048, height: int = 2048, color: TGAColor_t = _red3
+    ) -> TGAImage:
+        # Basically, homework 1
+        # The numbers go from -1..1 so we need to map them from the center of the image...
+        width_center: Final[int] = width // 2
+        height_center: Final[int] = height // 2
+
+        framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
+
+        for face in self.faces:
+            # Get the indices of the vertices
+            idx = (face[0].vertex, face[1].vertex, face[2].vertex)
+            # Read those out
+            points = (self.vertices[idx[0]], self.vertices[idx[1]], self.vertices[idx[2]])
+            # Draw the lines
+            for i in range(3):
+                this = i % 3
+                that = (i + 1) % 3
+                # The extra "-1" is to shift the image into the correct quadrant; e.g.:
+                # DC => AB
+                # BA    CD
+                # Because our origin is the bottom left corner of C but the OBJ is at center of image
+                # (bottom left corner of C)
+                render_line(
+                    round((points[this].x - 1) * (width_center)),
+                    round((points[this].y - 1) * (height_center)),
+                    round((points[that].x - 1) * (width_center)),
+                    round((points[that].y - 1) * (height_center)),
+                    framebuffer,
+                    color,
+                )
+        return framebuffer
 
     def __str__(self: Self) -> str:
         return (
