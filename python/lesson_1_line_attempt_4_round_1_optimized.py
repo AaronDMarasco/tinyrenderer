@@ -22,15 +22,19 @@ def line(ax: int, ay: int, bx: int, by: int, framebuffer: TGAImage, color: TGACo
     if ax > bx:  # make it left-to-right
         ax, bx = bx, ax
         ay, by = by, ay
-    for x in range(ax, bx + 1):
-        if bx == ax:  # BUG: C++ allowed the div by zero here?
-            bx += 1
-        t = (x - ax) / (bx - ax)
-        y = round(ay + (by - ay) * t)
+    y: float = ay
+    if bx == ax:  # BUG: C++ allowed the div by zero here?
+        bx += 1
+    y_inc: Final = (by - ay) / (bx - ax)
+    for x in range(ax, min(bx + 1, framebuffer.width)):
+        y += y_inc
+        fixed_y = min(round(y), framebuffer.height - 1)
+        if fixed_y > 63:
+            raise ValueError(fixed_y)
         if steep:  # if transposed, de-transpose
-            framebuffer.set(y, x, color)
+            framebuffer.set(fixed_y, x, color)
         else:
-            framebuffer.set(x, y, color)
+            framebuffer.set(x, fixed_y, color)
 
 
 def main() -> int:
@@ -49,7 +53,7 @@ def main() -> int:
     """
 
     rng = np.random.default_rng()  # seed=42)
-    for _ in range(1 << 18):  # 3.7s
+    for _ in range(1 << 18):  # 4.0s (LOL - C++ and Python optimize differently!)
         ax = int(rng.integers(width))
         ay = int(rng.integers(width))
         bx = int(rng.integers(width))
