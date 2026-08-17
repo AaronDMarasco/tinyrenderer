@@ -25,7 +25,7 @@ def main() -> int:
 ../obj/diablo3_pose/diablo3_pose.obj
 """
     for fname in find_output.split():
-        basename = Path(fname).name
+        basename = Path(fname).name[:-4]
         try:
             obj_data = OBJ_Data.from_file(fname)
             framebuffer = obj_data.orthogonal_projection(width=width, height=height)

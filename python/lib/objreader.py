@@ -38,8 +38,13 @@ class OBJ_Vertex:
     z: float
 
 
-FLOATING_RE: Final = r"-?\d+(?:\.\d+)?"
+# NOTE: At this time, the 6-entry version of the vertex is unknown (but seems to be a default gray)
+# and the 2-vertex version of the texture assumes Z=0
+FLOATING_RE: Final = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
 VERTEX_RE: Final = re.compile(rf"^v\s+(?P<x>{FLOATING_RE})\s+(?P<y>{FLOATING_RE})\s+(?P<z>{FLOATING_RE})\s*$")
+VERTEX_RE_6: Final = re.compile(
+    rf"^v\s+(?P<x>{FLOATING_RE})\s+(?P<y>{FLOATING_RE})\s+(?P<z>{FLOATING_RE})\s+(?P<unk4>{FLOATING_RE})\s+(?P<unk5>{FLOATING_RE})\s+(?P<unk6>{FLOATING_RE})\s*$"
+)
 SINGLE_FACE_RE: Final = r"(?P<vertex_XXX>\d+)/(?P<texture_XXX>\d+)/(?P<normal_XXX>\d+)"
 FACE_RE: Final = re.compile(
     r"^f\s+"
@@ -49,6 +54,7 @@ FACE_RE: Final = re.compile(
 )
 V_NORMAL_RE: Final = re.compile(VERTEX_RE.pattern.replace("^v", "^vn"))
 TEXTURE_V_RE: Final = re.compile(VERTEX_RE.pattern.replace("^v", "^vt"))
+TEXTURE_V_RE_2: Final = re.compile(rf"^vt\s+(?P<x>{FLOATING_RE})\s+(?P<y>{FLOATING_RE})\s*$")
 _red3: Final[TGAColor_t] = TGAColor(0, 0, 255)
 
 
@@ -136,8 +142,15 @@ class OBJ_Data:
                         res.add_face(OBJ_Face((f0, f1, f2)))
                     case _ if m := TEXTURE_V_RE.match(line):
                         res.add_texture_v(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
+                    case _ if m := TEXTURE_V_RE_2.match(line):
+                        res.add_texture_v(OBJ_Vertex(float(m["x"]), float(m["y"]), 0))
                     case _ if m := VERTEX_RE.match(line):
                         res.add_vertex(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
+                    case _ if m := VERTEX_RE_6.match(line):
+                        if m["unk4"] == m["unk5"] == m["unk6"] == "0.752941":
+                            res.add_vertex(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
+                        else:
+                            logger.debug("Unknown 6-entry vertex where unknown values didn't match: %s", line.rstrip())
                     case _ if m := V_NORMAL_RE.match(line):
                         res.add_v_normal(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
                     case _:
