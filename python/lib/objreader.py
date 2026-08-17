@@ -1,21 +1,13 @@
 # TODO: Some testing would be nice...
 # The OBJ file seems to have comments with the counts of each type it should see?
 
-
 from __future__ import annotations
 
 import logging
 import re
-from dataclasses import FrozenInstanceError, dataclass, field
-from enum import IntEnum
-from functools import cache
-from io import BytesIO
-from itertools import batched
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, Self, TypeAlias, TypeVar
-from warnings import warn
-
-import numpy as np
+from typing import Final, Self
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -32,6 +24,9 @@ class OBJ_Face_entry:
 @dataclass(frozen=True, slots=True)
 class OBJ_Face:
     data: tuple[OBJ_Face_entry, OBJ_Face_entry, OBJ_Face_entry]
+
+    def __getitem__(self: Self, idx: int):
+        return self.data[idx]
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,10 +54,11 @@ class OBJ_Data:
         self.vertices.append(vertex)
 
     def __str__(self: Self) -> str:
-        return f"OBJ_Data({hex(id(self))}) with {len(self.faces) - 1} face(s) and {len(self.vertices)} vert(ex|ices)"
+        return f"OBJ_Data({hex(id(self))}) with {len(self.faces)} face(s) and {len(self.vertices) - 1} vert(ex|ices)"
 
 
-VERTEX_RE: Final = re.compile(r"^v\s+(?P<x>-?\d+\.\d+)\s+(?P<y>-?\d+\.\d+)\s+(?P<z>-?\d+\.\d+)\s*$")
+FLOATING_RE: Final = r"-?\d+(?:\.\d+)?"
+VERTEX_RE: Final = re.compile(rf"^v\s+(?P<x>{FLOATING_RE})\s+(?P<y>{FLOATING_RE})\s+(?P<z>{FLOATING_RE})\s*$")
 SINGLE_FACE_RE: Final = r"(?P<vertex_XXX>\d+)/(?P<texture_XXX>\d+)/(?P<normal_XXX>\d+)"
 FACE_RE: Final = re.compile(
     r"^f\s+"
@@ -77,7 +73,8 @@ def read_obj_file(infile: str | Path) -> OBJ_Data:
     with open(infile, encoding="utf-8") as ifile:
         for line_no, line in enumerate(ifile, 1):
             if m := VERTEX_RE.match(line):
-                res.add_vertex(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
+                # They go from -1 to 1 so normalize to 0..1
+                res.add_vertex(OBJ_Vertex((float(m["x"]) + 1) / 2, (float(m["y"]) + 1) / 2, (float(m["z"]) + 1) / 2))
             elif m := FACE_RE.match(line):
                 f0 = OBJ_Face_entry(vertex=int(m["vertex_0"]), texture=int(m["texture_0"]), normal=int(m["normal_0"]))
                 f1 = OBJ_Face_entry(vertex=int(m["vertex_1"]), texture=int(m["texture_1"]), normal=int(m["normal_1"]))
@@ -89,7 +86,3 @@ def read_obj_file(infile: str | Path) -> OBJ_Data:
             else:
                 logger.debug("Could not interpret line %d: %s", line_no, line.rstrip())
     return res
-
-
-# x = read_obj_file("../obj/diablo3_pose/diablo3_pose.obj")
-# raise ValueError(x)
