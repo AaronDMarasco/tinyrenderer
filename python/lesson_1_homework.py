@@ -33,7 +33,7 @@ def line(ax: int, ay: int, bx: int, by: int, framebuffer: TGAImage, color: TGACo
 
 
 def main() -> int:
-    width: Final = 2048
+    width: Final = 2047
     height: Final = 2048
 
     # The numbers go from -1..1 so we need to map them from the center of the image...
@@ -53,6 +53,11 @@ def main() -> int:
         for i in range(3):
             this = i % 3
             that = (i + 1) % 3
+            # The extra "-1" is to shift the image into the correct quadrant; e.g.:
+            # DC => AB
+            # BA    CD
+            # Because our origin is the bottom left corner of C but the OBJ is at center of image
+            # (bottom left corner of C)
             line(
                 round((points[this].x - 1) * (width_center)),
                 round((points[this].y - 1) * (height_center)),
