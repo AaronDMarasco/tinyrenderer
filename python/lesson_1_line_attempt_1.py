@@ -80,11 +80,9 @@ def main() -> int:
     line(cx, cy, ax, ay, framebuffer, yellow)
     line(ax, ay, cx, cy, framebuffer, red)
 
-    # A difference in the python vs C++ version is that python only stores valid data,
-    # so the BPP of the pixel must match the image. If not, you will get a warning, e.g.:
-    framebuffer.set(ax, ay, white)  # "Pixel write at (7, 3) changed bpp"
-    framebuffer.set(bx, by, white.resize(bpp=3))
-    framebuffer.set(cx, cy, white.resize(bpp=3))
+    framebuffer.set(ax, ay, white)
+    framebuffer.set(bx, by, white)
+    framebuffer.set(cx, cy, white)
 
     framebuffer.write_tga_file("framebuffer.tga")
 
