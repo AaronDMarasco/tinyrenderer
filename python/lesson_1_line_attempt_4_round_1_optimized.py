@@ -29,8 +29,6 @@ def line(ax: int, ay: int, bx: int, by: int, framebuffer: TGAImage, color: TGACo
     for x in range(ax, min(bx + 1, framebuffer.width)):
         y += y_inc
         fixed_y = min(round(y), framebuffer.height - 1)
-        if fixed_y > 63:
-            raise ValueError(fixed_y)
         if steep:  # if transposed, de-transpose
             framebuffer.set(fixed_y, x, color)
         else:
