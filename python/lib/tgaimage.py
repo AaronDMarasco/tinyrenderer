@@ -223,8 +223,7 @@ class TGAImage:
             # trailing = raw_data[data_size:]
             # Truncate it
             raw_data = raw_data[:data_size]
-        pixels = [x for x in _grouper(TGAColor_from_raw(raw_data, bpp=bpp), w)]
-        res.npdata = np.array(pixels)
+        res.npdata = np.array([x for x in _grouper(TGAColor_from_raw(raw_data, bpp=bpp), w)], dtype=TGAColor_t)
         assert res.npdata.shape == (h, w), f"Re-shaping error? {(h, w)=} vs. {res.npdata.shape}"
         if not (imgd & 0x20):
             res.flip_vertically()
@@ -237,7 +236,8 @@ class TGAImage:
     @property
     def _raw_payload(self: Self) -> bytes:
         self.verify()
-        return b"".join(bytes(c) for c in self.npdata.flat)
+        all_bytes: Final = np.vectorize(bytes)(self.npdata)
+        return all_bytes.ravel().tobytes()
 
     def verify(self: Self) -> None:
         """Checks that all pixels are the right size"""

@@ -56,7 +56,6 @@ yellow: Final = TGAColor(0, 200, 255, 255).resize(bpp=3)
 
 
 def line(ax: int, ay: int, bx: int, by: int, framebuffer: TGAImage, color: TGAColor_t) -> None:
-    # for t in np.arange(stop=1.0, step=0.02):  # Should this be linspace?
     for t in np.linspace(start=0.0, stop=1.0, num=50, endpoint=False):
         x = round(ax + (bx - ax) * t)
         y = round(ay + (by - ay) * t)

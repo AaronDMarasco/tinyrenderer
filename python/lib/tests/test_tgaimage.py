@@ -180,6 +180,7 @@ class TestTGAColor:
         assert TGAColor(1, 2) is TGAColor(1, 2)
         assert TGAColor(1) is TGAColor(1)
         assert TGAColor() is TGAColor()
+        assert all(map(lambda c: c is TGAColor(4, 3, 2, 1), (TGAColor(4, 3, 2, 1) for _ in range(1_000_000))))
 
     def test_caching_auto_bpp(self: Self) -> None:
         assert TGAColor(1, 2, 3, 4) is TGAColor(1, 2, 3, 4, bpp=4)
