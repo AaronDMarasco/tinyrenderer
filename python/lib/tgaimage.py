@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import FrozenInstanceError, dataclass, field
 from enum import IntEnum
 from functools import cache
@@ -18,6 +19,9 @@ uint16_t: TypeAlias = np.uint16
 
 
 __all__ = ["TGAColor", "TGAColor_from_raw", "TGAHeader", "TGAImage", "uint8_t", "uint16_t"]
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
 
 
 # Utility from itertools documentation
@@ -269,6 +273,7 @@ class TGAImage:
             out.write(developer_area_ref)
             out.write(extension_area_ref)
             out.write(footer)
+        logger.info("Wrote to file %s: %s", filename, self)
 
     def flip_horizontally(self: Self) -> None:
         self.npdata = np.fliplr(self.npdata)
@@ -341,3 +346,6 @@ class TGAImage:
                     res.write(bytes(flat_data[current_pixel]))
                 current_pixel += run_length
             return res.getvalue()
+
+    def __str__(self: Self) -> str:
+        return f"{self.width}x{self.height}/{self.bpp}"
