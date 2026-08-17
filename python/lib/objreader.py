@@ -47,9 +47,7 @@ FACE_RE: Final = re.compile(
     rf"{SINGLE_FACE_RE.replace('XXX', '1')}\s+"
     rf"{SINGLE_FACE_RE.replace('XXX', '2')}\s*$"
 )
-V_NORMAL_RE: Final = re.compile(
-    VERTEX_RE.pattern.replace("^v", "^vn")
-)  # re.compile(rf"^vn\s+(?P<v0>{FLOATING_RE})\s+(?P<v1>{FLOATING_RE})\s+(?P<v2>{FLOATING_RE})\s*$")
+V_NORMAL_RE: Final = re.compile(VERTEX_RE.pattern.replace("^v", "^vn"))
 TEXTURE_V_RE: Final = re.compile(VERTEX_RE.pattern.replace("^v", "^vt"))
 _red3: Final[TGAColor_t] = TGAColor(0, 0, 255)
 
