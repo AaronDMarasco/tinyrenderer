@@ -43,7 +43,7 @@ def triangle_scanlines(
     framebuffer: TGAImage,
     color: TGAColor_t,
     *,
-    fill: bool = False,
+    fill: bool = True,
 ) -> None:
     """Draw an unfilled triangle"""
     points = line(*a, *b, framebuffer, color, draw=not fill)
