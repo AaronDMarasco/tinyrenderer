@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from typing import Final
 
-from lib.render import triangle
+from lib.render import triangle_barycentric_lesson_3
 from lib.tgaimage import TGAColor, TGAImage
 
 white: Final = TGAColor(255, 255, 255, 255).resize(bpp=3)  # Attention: BGRA order
@@ -14,13 +14,11 @@ yellow: Final = TGAColor(0, 200, 255, 255).resize(bpp=3)
 
 
 def main() -> int:
-    width: Final = 128
-    height: Final = 128
+    width: Final = 64
+    height: Final = 64
 
-    framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
-    triangle((7, 45), (35, 100), (45, 60), framebuffer, red)
-    triangle((120, 35), (90, 5), (45, 110), framebuffer, white, fill=True)
-    triangle((115, 83), (80, 90), (85, 120), framebuffer, green)
+    framebuffer = TGAImage(width, height, TGAImage.Format.GRAYSCALE)
+    triangle_barycentric_lesson_3((17, 4, 13), (55, 39, 128), (23, 59, 255), framebuffer)
     framebuffer.write_tga_file("framebuffer.tga")
 
     return 0
