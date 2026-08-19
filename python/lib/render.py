@@ -37,21 +37,18 @@ def line(
 
 
 def triangle(
-    ax: int,
-    ay: int,
-    bx: int,
-    by: int,
-    cx: int,
-    cy: int,
+    a: tuple[int, int],
+    b: tuple[int, int],
+    c: tuple[int, int],
     framebuffer: TGAImage,
     color: TGAColor_t,
     *,
     fill: bool = False,
 ) -> None:
     """Draw an unfilled triangle"""
-    points = line(ax, ay, bx, by, framebuffer, color, draw=not fill)
-    points.extend(line(bx, by, cx, cy, framebuffer, color, draw=not fill))
-    points.extend(line(cx, cy, ax, ay, framebuffer, color, draw=not fill))
+    points = line(*a, *b, framebuffer, color, draw=not fill)
+    points.extend(line(*b, *c, framebuffer, color, draw=not fill))
+    points.extend(line(*c, *a, framebuffer, color, draw=not fill))
 
     if fill:
         # Scan-line algorithm: no need to sort the Y values just throw them in a set
