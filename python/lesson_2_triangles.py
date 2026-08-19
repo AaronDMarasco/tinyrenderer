@@ -5,7 +5,11 @@ import sys
 from pathlib import Path
 from typing import Final
 
+import numpy as np
+
 from lib.objreader import OBJ_Data
+from lib.render import triangle
+from lib.tgaimage import TGAColor, TGAImage
 
 # logging.getLogger('lib.objreader').setLevel(logging.INFO)
 
@@ -13,6 +17,12 @@ from lib.objreader import OBJ_Data
 def main() -> int:
     width: Final = 2047
     height: Final = 2048
+
+    # The numbers go from -1..1 so we need to map them from the center of the image...
+    width_center: Final[int] = width // 2
+    height_center: Final[int] = height // 2
+
+    rng = np.random.default_rng()  # seed=42)
 
     find_output = """
 ../obj/boggie/head.obj
@@ -27,8 +37,25 @@ def main() -> int:
     for fname in find_output.split():
         basename = Path(fname).name[:-4]
         try:
+            framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
             obj_data = OBJ_Data.from_file(fname)
-            framebuffer = obj_data.orthogonal_projection(width=width, height=height)
+            for face in obj_data.faces:
+                idx = (face[0].vertex, face[1].vertex, face[2].vertex)
+                # Read those out
+                points = (obj_data.vertices[idx[0]], obj_data.vertices[idx[1]], obj_data.vertices[idx[2]])
+                # Fix quadrant and scaling
+                a = (round((points[0].x - 1) * width_center), round((points[0].y - 1) * height_center))
+                b = (round((points[1].x - 1) * width_center), round((points[1].y - 1) * height_center))
+                c = (round((points[2].x - 1) * width_center), round((points[2].y - 1) * height_center))
+
+                triangle(
+                    a,
+                    b,
+                    c,
+                    framebuffer,
+                    TGAColor(int(rng.integers(255)), int(rng.integers(255)), int(rng.integers(255))),
+                )
+
             framebuffer.write_tga_file(f"{basename}.tga")
         except Exception as err:
             print(f"Could not process {fname}: {err}")
