@@ -195,6 +195,50 @@ class TestTGAColor:
     def test_not_equal(self: Self) -> None:
         assert TGAColor(1, 2, 3, 4) != TGAColor(1, 2, 3, 3)
 
+    def test_sorting(self: Self) -> None:
+        assert TGAColor(1, 2, 3, 4) <= TGAColor(1, 2, 3, 4, bpp=4)
+        assert TGAColor(1, 2, 3) <= TGAColor(1, 2, 3, bpp=3)
+        assert TGAColor(1, 2) <= TGAColor(1, 2, bpp=2)
+        assert TGAColor(1) <= TGAColor(1, bpp=1)
+        assert TGAColor() <= TGAColor(0, bpp=1)
+
+        assert TGAColor(1, 2, 3, 4) <= TGAColor(1, 2, 3, 5, bpp=4)
+        assert TGAColor(1, 2, 3) <= TGAColor(1, 2, 4, bpp=3)
+        assert TGAColor(1, 2) <= TGAColor(1, 3, bpp=2)
+        assert TGAColor(1) <= TGAColor(2, bpp=1)
+        assert TGAColor() <= TGAColor(1, bpp=1)
+
+        assert TGAColor(1, 2, 3, 4) >= TGAColor(1, 2, 3, 4, bpp=4)
+        assert TGAColor(1, 2, 3) >= TGAColor(1, 2, 3, bpp=3)
+        assert TGAColor(1, 2) >= TGAColor(1, 2, bpp=2)
+        assert TGAColor(1) >= TGAColor(1, bpp=1)
+        assert TGAColor() >= TGAColor(0, bpp=1)
+
+        assert TGAColor(1, 2, 3, 5) >= TGAColor(1, 2, 3, 4, bpp=4)
+        assert TGAColor(1, 2, 4) >= TGAColor(1, 2, 3, bpp=3)
+        assert TGAColor(1, 3) >= TGAColor(1, 2, bpp=2)
+        assert TGAColor(2) >= TGAColor(1, bpp=1)
+        assert TGAColor(1) >= TGAColor()
+
+    @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
+    @given(bgra_in=st.lists(valid_uint8_t, min_size=10, max_size=10))
+    def test_sorting_hypothesis_le(self: Self, bgra_in: list[int], bpp: int) -> None:
+        b1, b2, g1, g2, r1, r2, b1, b2, a1, a2 = sorted(bgra_in)
+        uut = TGAColor(b1, g1, r1, a1, bpp=bpp)
+        uut2 = TGAColor(b2, g2, r2, a2, bpp=bpp)
+        assert uut <= uut2
+        assert not (uut > uut2)
+
+    @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
+    @given(bgra_in=st.lists(valid_uint8_t, min_size=10, max_size=10, unique=True))
+    def test_sorting_hypothesis_lt(self: Self, bgra_in: list[int], bpp: int) -> None:
+        b1, b2, g1, g2, r1, r2, b1, b2, a1, a2 = sorted(bgra_in)
+        uut = TGAColor(b1, g1, r1, a1, bpp=bpp)
+        uut2 = TGAColor(b2, g2, r2, a2, bpp=bpp)
+        assert uut < uut2
+        assert not (uut > uut2)
+        assert uut != uut2
+
     def test_frozen(self: Self) -> None:
         uut = TGAColor(1, 2, 3, 4)
         assert uut[1] == 2

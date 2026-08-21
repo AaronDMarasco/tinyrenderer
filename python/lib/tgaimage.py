@@ -3,11 +3,11 @@ from __future__ import annotations
 import logging
 from dataclasses import FrozenInstanceError, dataclass, field
 from enum import IntEnum
-from functools import cache
+from functools import cache, total_ordering
 from io import BytesIO
 from itertools import batched
 from pathlib import Path
-from typing import Final, Self, TypeAlias, TypeVar
+from typing import Any, Final, Self, TypeAlias, TypeVar
 from warnings import warn
 
 import numpy as np
@@ -48,6 +48,7 @@ TGAHeader: Final[dtype] = dtype([
 
 
 @dataclass(slots=True)
+@total_ordering
 class TGAColor_t:
     _data: tuple[int, ...] = field(init=False)
     _byte_data: bytes | None = field(default=None, init=False)
@@ -94,6 +95,16 @@ class TGAColor_t:
 
     def __setitem__(self: Self, idx: int, val: uint8_t) -> None:
         raise FrozenInstanceError
+
+    def __le__(self: Self, other: Any) -> bool:
+        if not isinstance(other, TGAColor_t) or self.bytespp != other.bytespp:
+            return NotImplemented
+        return self._data <= other._data
+
+    def __eq__(self: Self, other: Any) -> bool:
+        if not isinstance(other, TGAColor_t):
+            return NotImplemented
+        return hash(self) == hash(other)
 
     def __hash__(self: Self) -> int:
         return hash(self._data)
