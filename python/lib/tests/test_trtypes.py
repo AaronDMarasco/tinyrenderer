@@ -70,4 +70,4 @@ class TestVec3:
         uut1 = vec3(*vec_in[0:3])
         uut2 = vec3(*vec_in[3:6])
         res = uut1 * uut2
-        assert res == pytest.approx(np.dot(uut1.np, uut2.np))
+        assert res == pytest.approx(uut1.x * uut2.x + uut1.y * uut2.y + uut1.z * uut2.z)
