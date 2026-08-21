@@ -10,6 +10,7 @@ from typing import Final, Self
 
 from .render import line as render_line
 from .tgaimage import TGAColor, TGAColor_t, TGAImage
+from .trtypes import vec3 as OBJ_Vertex
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -29,13 +30,6 @@ class OBJ_Face:
 
     def __getitem__(self: Self, idx: int):
         return self.data[idx]
-
-
-@dataclass(frozen=True, slots=True)
-class OBJ_Vertex:
-    x: float
-    y: float
-    z: float
 
 
 # NOTE: At this time, the 6-entry version of the vertex is unknown (but seems to be a default gray)
