@@ -158,4 +158,38 @@ def triangle_barycentric_lesson_3_homework(
                 framebuffer.set(x, y, TGAColor(color1, color2, color3))
 
 
+def triangle_barycentric_lesson_4(
+    a: tuple[int, int, int],
+    b: tuple[int, int, int],
+    c: tuple[int, int, int],
+    z_buffer: TGAImage,
+    framebuffer: TGAImage,
+    color: TGAColor_t,
+) -> None:
+    ax, ay, az = a
+    bx, by, bz = b
+    cx, cy, cz = c
+    bb_min_x: Final[int] = min(ax, bx, cx)  # bounding box for the triangle
+    bb_max_x: Final[int] = max(ax, bx, cx)  # defined by its top left and bottom right corners
+    bb_min_y: Final[int] = min(ay, by, cy)
+    bb_max_y: Final[int] = max(ay, by, cy)
+    total_area: Final = _signed_triangle_area(ax, ay, bx, by, cx, cy)
+    if total_area < 1:
+        return  # Early return for backface culling + discarding triangles that cover less than a pixel
+
+    for x in range(bb_min_x, bb_max_x + 1):
+        for y in range(bb_min_y, bb_max_y + 1):
+            alpha = _signed_triangle_area(x, y, bx, by, cx, cy) / total_area
+            beta = _signed_triangle_area(x, y, cx, cy, ax, ay) / total_area
+            gamma = _signed_triangle_area(x, y, ax, ay, bx, by) / total_area
+            if alpha < 0 or beta < 0 or gamma < 0:
+                continue  # negative barycentric coordinate => the pixel is outside the triangle
+            z = round(alpha * az + beta * bz + gamma * cz)
+            z_color = TGAColor(z)
+            if z_color <= z_buffer.get(x, y):  # Behind what we've already drawn
+                continue
+            z_buffer.set(x, y, z_color)
+            framebuffer.set(x, y, color)
+
+
 triangle = triangle_barycentric
