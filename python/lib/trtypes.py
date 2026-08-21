@@ -21,4 +21,21 @@ class vec3:
     def from_np(array: npt.NDArray[numpy.float64]) -> vec3:
         assert isinstance(array, numpy.ndarray)
         assert array.shape == (3,)
+        assert array.dtype == float
         return vec3(x=float(array[0]), y=float(array[1]), z=float(array[2]))
+
+    def __add__(self: Self, other: vec3) -> vec3:
+        if not isinstance(other, vec3):
+            return NotImplemented
+        return vec3(self.x + other.x, self.y + other.y, self.z + other.z)
+
+    def __sub__(self: Self, other: vec3) -> vec3:
+        if not isinstance(other, vec3):
+            return NotImplemented
+        return vec3(self.x - other.x, self.y - other.y, self.z - other.z)
+
+    def __mul__(self: Self, other: vec3) -> float:
+        """Dot product"""
+        if not isinstance(other, vec3):
+            return NotImplemented
+        return self.x * other.x + self.y * other.y + self.z * other.z
