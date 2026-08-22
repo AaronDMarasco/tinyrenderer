@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from math import cos, pi, sin
 from pathlib import Path
 from typing import Final
 
@@ -8,7 +9,11 @@ import numpy as np
 
 from lib.objreader import OBJ_Data
 from lib.render import triangle_barycentric_lesson_4
-from lib.tgaimage import TGAColor, TGAImage
+from lib.tgaimage import TGAColor_t, TGAImage
+from lib.trtypes import vec3
+
+width: Final = 2048
+height: Final = 2048
 
 # white: Final = TGAColor(255, 255, 255, 255).resize(bpp=3)  # Attention: BGRA order
 # green: Final = TGAColor(0, 255, 0, 255).resize(bpp=3)
@@ -16,16 +21,33 @@ from lib.tgaimage import TGAColor, TGAImage
 # blue: Final = TGAColor(255, 128, 64, 255).resize(bpp=3)
 # yellow: Final = TGAColor(0, 200, 255, 255).resize(bpp=3)
 
+# Not sure where this will end up:
+
+
+def rot(v: vec3, rotation: float = pi / 6) -> vec3:
+    Ry: Final = np.array(
+        [[cos(rotation), 0, sin(rotation)], [0, 1, 0], [-sin(rotation), 0, cos(rotation)]], dtype=float
+    )
+    res = Ry @ v.np  # numpy notation for matrix x vector = vector
+    return vec3.from_np(res)
+
+
+def project(v: vec3, width: int = width, height: int = height) -> tuple[int, int, int]:
+    """
+    Orthogonal Projection
+
+    First of all, (x,y) is an orthogonal projection of the vector (x,y,z).
+    Second, since the input models are scaled to have fit in the [-1,1]^3 world coordinates,
+    we want to shift the vector (x,y) and then scale it to span the entire screen.
+    """
+    return (
+        min(width - 1, round((v.x + 1) * width / 2)),
+        min(height - 1, round((v.y + 1) * height / 2)),
+        round((v.z + 1) * 255 / 2),
+    )
+
 
 def main() -> int:
-    width: Final = 2047
-    height: Final = 2048
-
-    # The numbers go from -1..1 so we need to map them from the center of the image...
-    width_center: Final[int] = width // 2
-    height_center: Final[int] = height // 2
-
-    rng = np.random.default_rng()  # seed=42)
 
     find_output = """
 ../obj/boggie/head.obj
@@ -45,33 +67,11 @@ def main() -> int:
             obj_data = OBJ_Data.from_file(fname)
             for face in obj_data.faces:
                 idx = (face[0].vertex, face[1].vertex, face[2].vertex)
-                # Read those out
-                points = (obj_data.vertices[idx[0]], obj_data.vertices[idx[1]], obj_data.vertices[idx[2]])
-                # Fix quadrant and scaling
-                a = (
-                    round((points[0].x - 1) * width_center),
-                    round((points[0].y - 1) * height_center),
-                    round(127 * (points[0].z + 1)),
-                )
-                b = (
-                    round((points[1].x - 1) * width_center),
-                    round((points[1].y - 1) * height_center),
-                    round(127 * (points[1].z + 1)),
-                )
-                c = (
-                    round((points[2].x - 1) * width_center),
-                    round((points[2].y - 1) * height_center),
-                    round(127 * (points[2].z + 1)),
-                )
+                a = project(rot(obj_data.vertices[idx[0]]))
+                b = project(rot(obj_data.vertices[idx[1]]))
+                c = project(rot(obj_data.vertices[idx[2]]))
 
-                triangle_barycentric_lesson_4(
-                    a,
-                    b,
-                    c,
-                    z_buffer,
-                    framebuffer,
-                    TGAColor(int(rng.integers(255)), int(rng.integers(255)), int(rng.integers(255))),
-                )
+                triangle_barycentric_lesson_4(a, b, c, z_buffer, framebuffer, TGAColor_t.random())
 
             framebuffer.write_tga_file(f"{basename}.tga")
             z_buffer.write_tga_file(f"{basename}_z.tga")

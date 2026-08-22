@@ -17,6 +17,8 @@ from numpy import dtype
 uint8_t: TypeAlias = np.uint8
 uint16_t: TypeAlias = np.uint16
 
+rng = np.random.default_rng()
+
 
 __all__ = ["TGAColor", "TGAColor_from_raw", "TGAHeader", "TGAImage", "uint8_t", "uint16_t"]
 
@@ -81,6 +83,13 @@ class TGAColor_t:
     @property
     def bytespp(self: Self) -> int:
         return len(self._data)
+
+    @staticmethod
+    def random(bpp: uint8_t | None = None) -> TGAColor_t:
+        if bpp is None:
+            bpp = uint8_t(3)
+        coordinates = [int(rng.integers(255)) for _ in range(bpp)]
+        return TGAColor(*coordinates)
 
     def resize(self: Self, bpp: int | uint8_t) -> TGAColor_t:
         """Converts to a new pixel with a lower BPP"""
