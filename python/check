@@ -1,14 +1,13 @@
 #!/bin/bash
 clear
 # export QUICK_CHECK=x
-set -x
 set -e
 uv --preview-features format format --version "0.16.3"
 uv run ssort --check --diff
 set +e
 uv run ruff check .
 uv run mypy .
-if false; then
+if true; then
     if true; then
         uv run pytest -vv  # --capture=tee-sys --durations=5
     else

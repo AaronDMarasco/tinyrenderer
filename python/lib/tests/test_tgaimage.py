@@ -282,7 +282,7 @@ class TestTGAImage:
         # TODO: Sample a random set of pixels or something?
         assert uut.width == metadata.width, f"Expected width={metadata.width}, got {uut.width}"
         assert uut.height == metadata.height, f"Expected height={metadata.height}, got {uut.height}"
-        assert (count := TestTGAImage.count_unique_colors(uut)) == metadata.colors, (  # noqa: RUF018
+        assert (count := TestTGAImage.count_unique_colors(uut)) == metadata.colors, (
             f"Expected {metadata.colors} colors, got {count}"
         )
 

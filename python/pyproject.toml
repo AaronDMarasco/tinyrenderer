@@ -43,7 +43,6 @@ select = [
     "RUF",
 ]
 ignore = [
-  "non-pep604-isinstance",
   "non-pep695-type-alias",
 ]
 preview = true
