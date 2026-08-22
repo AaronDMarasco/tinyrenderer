@@ -2,12 +2,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Self  # , TypeVar
+from typing import Self
 
 import numpy  # Import as np conflicts with property named np
 import numpy.typing as npt
-
-# VB = TypeVar("VB", bound="_VectorBase")
 
 
 @dataclass(frozen=True, slots=True)
