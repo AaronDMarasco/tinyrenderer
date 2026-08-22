@@ -42,7 +42,10 @@ select = [
     "I",
     "RUF",
 ]
-ignore = ["UP040"]
+ignore = [
+  "non-pep604-isinstance",
+  "non-pep695-type-alias",
+]
 preview = true
 
 # [tool.mypy]

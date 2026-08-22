@@ -2,10 +2,10 @@
 clear
 # export QUICK_CHECK=x
 set -e
-uv --preview-features format format -- --line-length 120
+uv --version ">=0.16.3"--preview-features format format -- --line-length 120
 uv run ssort --check --diff
 set +e
-ruff check .
+uv run ruff check .
 uv run mypy .
 if false; then
     if true; then
