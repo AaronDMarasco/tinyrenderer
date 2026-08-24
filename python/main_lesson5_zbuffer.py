@@ -8,9 +8,9 @@ from typing import Final
 import numpy as np
 
 from lib.objreader import OBJ_Data
-from lib.render import triangle_barycentric_lesson_4
+from lib.render import triangle_barycentric_lesson_5
 from lib.tgaimage import TGAColor_t, TGAImage
-from lib.trtypes import vec3
+from lib.trtypes import ZBuffer, vec3
 
 width: Final = 800
 height: Final = 800
@@ -67,17 +67,17 @@ def main() -> int:
         basename = Path(fname).name[:-4]
         try:
             framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
-            z_buffer = TGAImage(width, height, TGAImage.Format.GRAYSCALE)
+            z_buffer = ZBuffer(width=width, height=height)
             obj_data = OBJ_Data.from_file(fname)
             for face in obj_data.faces:
                 idx = (face[0].vertex, face[1].vertex, face[2].vertex)
                 a = project(persp(rot(obj_data.vertices[idx[0]])))
                 b = project(persp(rot(obj_data.vertices[idx[1]])))
                 c = project(persp(rot(obj_data.vertices[idx[2]])))
-                triangle_barycentric_lesson_4(a, b, c, z_buffer, framebuffer, TGAColor_t.random())
+                triangle_barycentric_lesson_5(a, b, c, z_buffer, framebuffer, TGAColor_t.random())
 
             framebuffer.write_tga_file(f"{basename}.tga")
-            z_buffer.write_tga_file(f"{basename}_z.tga")
+            z_buffer.to_tga(nan_zero=True).write_tga_file(f"{basename}_z.tga")
 
         except Exception as err:
             print(f"Could not process {fname}: {err}")

@@ -1,11 +1,43 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Self
+from dataclasses import dataclass, field
+from typing import Self, cast
 
 import numpy  # Import as np conflicts with property named np
 import numpy.typing as npt
+
+from .tgaimage import TGAColor, TGAImage
+
+
+@dataclass(slots=True)
+class ZBuffer:
+    vals: list[list[float]] = field(init=False)
+
+    def __init__(self: Self, *, width: int, height: int) -> None:
+        self.vals = cast(list[list[float]], numpy.full((width, height), numpy.nan, dtype=float).tolist())
+
+    def to_tga(self: Self, *, nan_zero: bool = False) -> TGAImage:
+        """If nan_zero is not set, any unset values will explode"""
+        nparray = numpy.array(self.vals, dtype=float)
+        if not nan_zero and numpy.isnan(nparray).any():
+            err_msg = "ZBuffer had NaN and not told to assume zero!"
+            raise ValueError(err_msg)
+        nparray[numpy.isnan(nparray)] = 0
+        width, height = nparray.shape
+        # Want to scale from 0..255
+        min_val = nparray.min()
+        max_val = nparray.max()
+        if min_val == max_val:
+            # Just regenerate an empty image
+            return TGAImage(w=width, h=height, bpp=1, c=TGAColor(0))
+        # Otherwise, create scaled image
+        fb = TGAImage(w=width, h=height, bpp=1)
+        normalized = (nparray - min_val) * 255 / (max_val - min_val)
+        for x in range(0, width):
+            for y in range(0, height):
+                fb.set(x, y, TGAColor(round(normalized[x, y])))
+        return fb
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,6 +1,7 @@
 #!/bin/env python
 from __future__ import annotations
 
+from math import isnan
 from typing import Self, TypeAlias
 
 import numpy as np
@@ -8,7 +9,8 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from ..trtypes import _VectorBase, vec2, vec3, vec4
+from ..tgaimage import TGAColor
+from ..trtypes import ZBuffer, _VectorBase, vec2, vec3, vec4
 
 reasonable_integers = st.integers(min_value=-(2**31), max_value=2**31 - 1)
 
@@ -112,3 +114,49 @@ class TestVector:
             assert isinstance(uut2, vec4)
             expected += uut1.a * uut2.a
         assert res == pytest.approx(expected)
+
+
+class TestZBuffer:
+    def test_default_size(self: Self) -> None:
+        with pytest.raises(TypeError):
+            _ = ZBuffer()  # type: ignore[call-arg]
+
+    def test_dimensions(self: Self) -> None:
+        uut = ZBuffer(width=20, height=30)
+        assert isnan(uut.vals[19][29])
+
+    @pytest.mark.parametrize("nan_zero", [True, False], ids=["nan_zero=True", "nan_zero=False"])
+    def test_to_tga_1x1(self: Self, nan_zero: bool) -> None:
+        uut = ZBuffer(width=1, height=1)
+        if not nan_zero:
+            with pytest.raises(ValueError):
+                fb = uut.to_tga(nan_zero=False)
+        else:
+            fb = uut.to_tga(nan_zero=True)
+            assert fb.get(0, 0) == TGAColor(0)
+
+    @pytest.mark.parametrize("nan_zero", [True, False], ids=["nan_zero=True", "nan_zero=False"])
+    def test_to_tga_2x3(self: Self, nan_zero: bool) -> None:
+        uut = ZBuffer(width=2, height=3)
+        if not nan_zero:
+            with pytest.raises(ValueError):
+                fb = uut.to_tga(nan_zero=False)
+        else:
+            uut.vals[0][0] = 100
+            uut.vals[1][2] = 100
+            fb = uut.to_tga(nan_zero=True)
+            # At this point, 0..100 should be 0..255
+            for x in range(2):
+                for y in range(3):
+                    if (x, y) not in {(0, 0), (1, 2)}:
+                        assert fb.get(x, y) == TGAColor(0)
+                    else:
+                        assert fb.get(x, y) == TGAColor(255)
+
+    def test_to_tga_scaling(self: Self) -> None:
+        uut = ZBuffer(width=20, height=1)
+        for i in range(20):
+            uut.vals[i][0] = -2000 + (i * 2000)  # -2000 to 36000 normalized should be about 13.42
+        fb = uut.to_tga(nan_zero=True)
+        for i in range(20):
+            assert fb.get(i, 0) == TGAColor(round(i * 13.42))
