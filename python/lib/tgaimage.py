@@ -137,7 +137,9 @@ class TGAColor_t:
 
     def __bytes__(self: Self) -> bytes:
         if self._byte_data is None:
-            self._byte_data = b"".join(c.to_bytes() for c in self._data)
+            if any(not (0 <= c <= 255) for c in self._data):
+                logger.warning("Out-of-range value for color byte; clipping (%s)", self._data)
+            self._byte_data = b"".join(max(0, min(c, 255)).to_bytes() for c in self._data)
         return self._byte_data
 
 
@@ -313,6 +315,9 @@ class TGAImage:
                 err_msg = f"Pixel write at ({x}, {y}) {c} failed resizing to bpp={self.bpp}"
                 raise ValueError(err_msg) from err
             warn(f"Pixel write at ({x}, {y}) changed bpp: was {old} now {c}", stacklevel=2)
+        if not (0 <= x < self.width) or not (0 <= y < self.height):
+            logger.debug("TGAImage.set(%s, %s) invalid: Image is %d x %d", x, y, self.width, self.height)
+            return
         self.npdata[y, x] = c
 
     def load_rle_data(self: Self, in_: bytes) -> bytes:

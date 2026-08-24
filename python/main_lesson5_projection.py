@@ -12,16 +12,14 @@ from lib.render import triangle_barycentric_lesson_4
 from lib.tgaimage import TGAColor_t, TGAImage
 from lib.trtypes import vec3
 
-width: Final = 2048
-height: Final = 2048
+width: Final = 800
+height: Final = 800
 
 # white: Final = TGAColor(255, 255, 255, 255).resize(bpp=3)  # Attention: BGRA order
 # green: Final = TGAColor(0, 255, 0, 255).resize(bpp=3)
 # red: Final = TGAColor(0, 0, 255, 255).resize(bpp=3)
 # blue: Final = TGAColor(255, 128, 64, 255).resize(bpp=3)
 # yellow: Final = TGAColor(0, 200, 255, 255).resize(bpp=3)
-
-# Not sure where this will end up:
 
 
 def rot(v: vec3, rotation: float = pi / 6) -> vec3:
@@ -47,6 +45,12 @@ def project(v: vec3, width: int = width, height: int = height) -> tuple[int, int
     )
 
 
+def persp(v: vec3, c: float = 3.0) -> vec3:
+    # return vec3.from_np(v.np / (1 - v.z / c))
+    ratio: Final = 1 - v.z / c
+    return vec3(v.x / ratio, v.y / ratio, v.z / ratio)
+
+
 def main() -> int:
 
     find_output = """
@@ -67,10 +71,9 @@ def main() -> int:
             obj_data = OBJ_Data.from_file(fname)
             for face in obj_data.faces:
                 idx = (face[0].vertex, face[1].vertex, face[2].vertex)
-                a = project(rot(obj_data.vertices[idx[0]]))
-                b = project(rot(obj_data.vertices[idx[1]]))
-                c = project(rot(obj_data.vertices[idx[2]]))
-
+                a = project(persp(rot(obj_data.vertices[idx[0]])))
+                b = project(persp(rot(obj_data.vertices[idx[1]])))
+                c = project(persp(rot(obj_data.vertices[idx[2]])))
                 triangle_barycentric_lesson_4(a, b, c, z_buffer, framebuffer, TGAColor_t.random())
 
             framebuffer.write_tga_file(f"{basename}.tga")
