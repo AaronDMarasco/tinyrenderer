@@ -70,6 +70,7 @@ def main() -> int:
                     c,
                     z_buffer,
                     framebuffer,
+                    # NEW: TGAColor_t.random(),
                     TGAColor(int(rng.integers(255)), int(rng.integers(255)), int(rng.integers(255))),
                 )
 
