@@ -204,13 +204,14 @@ def triangle_barycentric_lesson_5(
     ax, ay, az = a
     bx, by, bz = b
     cx, cy, cz = c
-    bb_min_x: Final[int] = min(ax, bx, cx)  # bounding box for the triangle
-    bb_max_x: Final[int] = max(ax, bx, cx)  # defined by its top left and bottom right corners
-    bb_min_y: Final[int] = min(ay, by, cy)
-    bb_max_y: Final[int] = max(ay, by, cy)
     total_area: Final = _signed_triangle_area(ax, ay, bx, by, cx, cy)
     if total_area < 1:
         return  # Early return for backface culling + discarding triangles that cover less than a pixel
+
+    bb_min_x: Final[int] = max(0, min(ax, bx, cx))  # bounding box for the triangle
+    bb_max_x: Final[int] = min(framebuffer.width, max(ax, bx, cx))  # defined by its top left and bottom right corners
+    bb_min_y: Final[int] = max(0, min(ay, by, cy))  # but bound by canvas size
+    bb_max_y: Final[int] = min(framebuffer.height, max(ay, by, cy))
 
     for x in range(bb_min_x, bb_max_x + 1):
         for y in range(bb_min_y, bb_max_y + 1):
