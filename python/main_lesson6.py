@@ -9,7 +9,7 @@ import numpy as np
 from lib.objreader import OBJ_Data
 from lib.render import rasterize_lesson_6
 from lib.tgaimage import TGAColor_t, TGAImage
-from lib.trtypes import Matrix4f, ZBuffer, norm, vec3, vec4
+from lib.trtypes import Matrix4f, ZBuffer, vec3, vec4
 
 width: Final = 800
 height: Final = 800
@@ -69,7 +69,7 @@ def main() -> int:
 """
 
     model_view: Final = lookat(eye, center, up)
-    perspective: Final = perspective_gen(norm(eye - center))
+    perspective: Final = perspective_gen((eye - center).norm)
     viewport: Final = viewport_gen(width // 16, height // 16, width * 7 // 8, height * 7 // 8)
 
     for fname in find_output.split():

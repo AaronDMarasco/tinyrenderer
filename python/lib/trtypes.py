@@ -56,6 +56,10 @@ class _VectorBase(ABC):
     def array(self: Self) -> list[float]: ...
 
     @property
+    def norm(self: Self) -> float:
+        return float(numpy.sqrt(self.np @ self.np))
+
+    @property
     def normalized(self: Self) -> Self:
         denom: Final = numpy.linalg.norm(self.np)
         if denom == 0:
@@ -192,8 +196,3 @@ class vec4(_VectorBase):
         if not isinstance(other, vec4):
             return NotImplemented
         return vec4(self.x - other.x, self.y - other.y, self.z - other.z, self.w - other.w)
-
-
-# TODO: Move to a geometry library?
-def norm(v: _VectorBase) -> float:
-    return float(numpy.sqrt(v.np @ v.np))

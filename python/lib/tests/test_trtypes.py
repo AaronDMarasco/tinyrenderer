@@ -10,7 +10,7 @@ from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 from ..tgaimage import TGAColor
-from ..trtypes import Matrix2f, Matrix3f, Matrix4f, MatrixLike, ZBuffer, _VectorBase, norm, vec2, vec3, vec4
+from ..trtypes import Matrix2f, Matrix3f, Matrix4f, MatrixLike, ZBuffer, _VectorBase, vec2, vec3, vec4
 
 # positive_integers  = st.integers(min_value=0, max_value=2**31 - 1)
 reasonable_integers = st.integers(min_value=-(2**31), max_value=2**31 - 1)
@@ -122,7 +122,7 @@ class TestVector:
         uut = class_(*in_data[0:width])
 
         try:
-            cpp = (uut / norm(uut)).array
+            cpp = (uut / uut.norm).array
             py = uut.normalized.array
         except ZeroDivisionError:
             assume(False)  # Tell hypothesis to stop trying that
