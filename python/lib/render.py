@@ -239,9 +239,9 @@ def rasterize_lesson_6(
     color: TGAColor_t,
 ) -> None:
     ndc: Final[list[vec4]] = [
-        clip[0] * (1 / clip[0].w),
-        clip[1] * (1 / clip[1].w),
-        clip[2] * (1 / clip[2].w),
+        clip[0] / clip[0].w,
+        clip[1] / clip[1].w,
+        clip[2] / clip[2].w,
     ]  # normalized device coordinates
     screen: Final[list[vec2]] = [
         vec4.from_np(viewport @ ndc[0].np).xy,

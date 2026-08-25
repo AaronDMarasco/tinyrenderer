@@ -90,6 +90,7 @@ def main() -> int:
 
         except Exception as err:
             print(f"Could not process {fname}: {err}")
+            raise RuntimeError from err
 
     return 0
 
