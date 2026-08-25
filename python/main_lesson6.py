@@ -21,8 +21,8 @@ up: Final = vec3(0, 1, 0)  # Camera up vector
 
 def viewport_gen(x: int, y: int, width: int = width, height: int = height) -> Matrix4f:
     return np.array([
-        [width // 2, 0, 0, x + width // 2],
-        [0, height // 2, 0, y + height // 2],
+        [width / 2, 0, 0, x + width / 2],
+        [0, height / 2, 0, y + height / 2],
         [0, 0, 1, 0],
         [0, 0, 0, 1],
     ])
@@ -39,9 +39,9 @@ def perspective_gen(f: float) -> Matrix4f:
 
 def lookat(eye: vec3, center: vec3, up: vec3) -> Matrix4f:
     # See https://haqr.eu/tinyrenderer/camera/ for vector naming
-    n_vec = eye.normalized
-    l_vec = up.cross(n_vec)
-    m_vec = n_vec.cross(l_vec)
+    n_vec = (eye - center).normalized
+    l_vec = up.cross(n_vec).normalized
+    m_vec = n_vec.cross(l_vec).normalized
     return np.array([
         [l_vec.x, l_vec.y, l_vec.z, 0],
         [m_vec.x, m_vec.y, m_vec.z, 0],
@@ -80,9 +80,9 @@ def main() -> int:
             obj_data = OBJ_Data.from_file(fname)
             for face in obj_data.faces:
                 clip: list[vec4] = []
-                for d in range(3):  # Assemble the primitive
-                    v = obj_data.vertices[face[d].vertex]
-                    clip.append(vec4.from_np(perspective * model_view @ vec4(x=v.x, y=v.y, z=v.z, w=1).np))
+                for entry in face.data:  # Assemble the primitive
+                    v = obj_data.vertices[entry.vertex]
+                    clip.append(vec4.from_np(perspective * model_view @ vec4.from_vec3(v, w=1).np))
                 rasterize_lesson_6(clip, viewport, z_buffer, framebuffer, TGAColor_t.random())
 
             framebuffer.write_tga_file(f"{basename}.tga")

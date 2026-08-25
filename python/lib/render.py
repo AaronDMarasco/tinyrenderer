@@ -238,7 +238,6 @@ def rasterize_lesson_6(
     framebuffer: TGAImage,
     color: TGAColor_t,
 ) -> None:
-    assert isinstance(z_buffer, ZBuffer), "Wrong version of rasterize called!"
     ndc: Final[list[vec4]] = [
         clip[0] * (1 / clip[0].w),
         clip[1] * (1 / clip[1].w),
