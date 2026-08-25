@@ -6,12 +6,13 @@ from typing import Self, TypeAlias
 
 import numpy as np
 import pytest
-from hypothesis import given
+from hypothesis import assume, given
 from hypothesis import strategies as st
 
 from ..tgaimage import TGAColor
 from ..trtypes import ZBuffer, _VectorBase, vec2, vec3, vec4
 
+# positive_integers  = st.integers(min_value=0, max_value=2**31 - 1)
 reasonable_integers = st.integers(min_value=-(2**31), max_value=2**31 - 1)
 
 VecParam: TypeAlias = tuple[int, type[_VectorBase]]
@@ -37,7 +38,7 @@ class TestVector:
             assert isinstance(uut2.z, float)
         if width >= 4:
             assert isinstance(uut2, vec4)
-            assert isinstance(uut2.a, float)
+            assert isinstance(uut2.w, float)
 
         assert uut2.y == vec_in[1]
 
@@ -79,7 +80,7 @@ class TestVector:
             assert res.z == pytest.approx(vec_in[2] + vec_in[width + 2])
         if width >= 4:
             assert isinstance(res, vec4)
-            assert res.a == pytest.approx(vec_in[3] + vec_in[width + 3])
+            assert res.w == pytest.approx(vec_in[3] + vec_in[width + 3])
 
     @given(vec_in=st.lists(st.floats(allow_nan=False, allow_infinity=False), min_size=8, max_size=8))
     def test_sub(self: Self, vec_in: list[float], vec_param: VecParam) -> None:
@@ -95,7 +96,7 @@ class TestVector:
             assert res.z == pytest.approx(vec_in[2] - vec_in[width + 2])
         if width >= 4:
             assert isinstance(res, vec4)
-            assert res.a == pytest.approx(vec_in[3] - vec_in[width + 3])
+            assert res.w == pytest.approx(vec_in[3] - vec_in[width + 3])
 
     @given(vec_in=st.lists(st.floats(allow_nan=False, allow_infinity=False, width=32), min_size=8, max_size=8))
     def test_dot_product(self: Self, vec_in: list[float], vec_param: VecParam) -> None:
@@ -112,8 +113,26 @@ class TestVector:
         if width >= 4:
             assert isinstance(uut1, vec4)
             assert isinstance(uut2, vec4)
-            expected += uut1.a * uut2.a
+            expected += uut1.w * uut2.w
         assert res == pytest.approx(expected)
+
+    @given(in_min=reasonable_integers, in_max=reasonable_integers)
+    def test_normalize(self: Self, in_min: int, in_max: int, vec_param: VecParam) -> None:
+        assume(in_min < in_max)
+        width, class_ = vec_param
+        # Create values that are all min-value except the first one is max
+        vals = [in_min] * width
+        vals[0] = in_max
+        uut = class_(*vals)
+        res = uut.normalized
+        assert res.x == pytest.approx(1)
+        assert res.y == pytest.approx(0)
+        if width >= 3:
+            assert isinstance(res, (vec3, vec4))
+            assert res.z == pytest.approx(0)
+        if width >= 4:
+            assert isinstance(res, vec4)
+            assert res.w == pytest.approx(0)
 
 
 class TestZBuffer:

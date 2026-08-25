@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Final
 
+import numpy as np
+
 from .tgaimage import TGAColor, TGAColor_t, TGAImage
-from .trtypes import ZBuffer
+from .trtypes import Matrix3f, Matrix4f, ZBuffer, vec2, vec3, vec4
 
 
 def line(
@@ -201,6 +204,7 @@ def triangle_barycentric_lesson_5(
     framebuffer: TGAImage,
     color: TGAColor_t,
 ) -> None:
+    assert isinstance(z_buffer, ZBuffer), "Wrong version of triangle_barycentric called!"
     ax, ay, az = a
     bx, by, bz = b
     cx, cy, cz = c
@@ -221,6 +225,52 @@ def triangle_barycentric_lesson_5(
             if alpha < 0 or beta < 0 or gamma < 0:
                 continue  # negative barycentric coordinate => the pixel is outside the triangle
             z = alpha * az + beta * bz + gamma * cz
+            if z <= z_buffer.vals[x][y]:  # Behind what we've already drawn
+                continue
+            z_buffer.vals[x][y] = z
+            framebuffer.set(x, y, color)
+
+
+def rasterize_lesson_6(
+    clip: Sequence[vec4],
+    viewport: Matrix4f,
+    z_buffer: ZBuffer,
+    framebuffer: TGAImage,
+    color: TGAColor_t,
+) -> None:
+    assert isinstance(z_buffer, ZBuffer), "Wrong version of rasterize called!"
+    ndc: Final[list[vec4]] = [
+        clip[0] * (1 / clip[0].w),
+        clip[1] * (1 / clip[1].w),
+        clip[2] * (1 / clip[2].w),
+    ]  # normalized device coordinates
+    screen: Final[list[vec2]] = [
+        vec4.from_np(viewport @ ndc[0].np).xy,
+        vec4.from_np(viewport @ ndc[1].np).xy,
+        vec4.from_np(viewport @ ndc[2].np).xy,
+    ]  # screen coordinates
+    ABC: Final[Matrix3f] = np.array([
+        [screen[0].x, screen[0].y, 1.0],
+        [screen[1].x, screen[1].y, 1.0],
+        [screen[2].x, screen[2].y, 1.0],
+    ])
+    if np.linalg.det(ABC) < 1:
+        return  # Early return for backface culling + discarding triangles that cover less than a pixel
+
+    # bounding box for the triangle defined by its top left and bottom right corners but bound by canvas size
+    bb_min_x: Final[int] = int(max(0, min(screen[0].x, screen[1].x, screen[2].x)))
+    bb_max_x: Final[int] = int(min(framebuffer.width - 1, max(screen[0].x, screen[1].x, screen[2].x)))
+    bb_min_y: Final[int] = int(max(0, min(screen[0].y, screen[1].y, screen[2].y)))
+    bb_max_y: Final[int] = int(min(framebuffer.height - 1, max(screen[0].y, screen[1].y, screen[2].y)))
+
+    for x in range(bb_min_x, bb_max_x + 1):
+        for y in range(bb_min_y, bb_max_y + 1):
+            ABC_invert_transpose = np.linalg.inv(ABC.T)
+            # bc = barycentric coordinates of {x,y} w.r.t the triangle
+            bc: vec3 = vec3.from_np(ABC_invert_transpose @ vec3(x, y, 1).np)
+            if bc.x < 0 or bc.y < 0 or bc.z < 0:
+                continue  # negative barycentric coordinate => the pixel is outside the triangle
+            z = bc * vec3(ndc[0].z, ndc[1].z, ndc[2].z)
             if z <= z_buffer.vals[x][y]:  # Behind what we've already drawn
                 continue
             z_buffer.vals[x][y] = z

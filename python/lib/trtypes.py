@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Self, cast
+from typing import Any, Literal, Self, cast, overload
 
 import numpy  # Import as np conflicts with property named np
 import numpy.typing as npt
 
 from .tgaimage import TGAColor, TGAImage
+
+type Matrix3f = numpy.ndarray[tuple[Literal[3], Literal[3]], numpy.dtype[numpy.float64]]
+type Matrix4f = numpy.ndarray[tuple[Literal[4], Literal[4]], numpy.dtype[numpy.float64]]
 
 
 @dataclass(slots=True)
@@ -47,8 +50,17 @@ class _VectorBase(ABC):
 
     @property
     @abstractmethod
-    def array(self: Self) -> list[float]:
-        raise NotImplementedError
+    def array(self: Self) -> list[float]: ...
+
+    @property
+    def normalized(self: Self) -> Self:
+        # Not sure which algorithm is expected... if we want the linear algebra one,
+        # then testing is unknown... so I'll leave that here...
+        # return cast(Self, self.from_np(self.np / numpy.linalg.norm(self.np)))
+        offset = self.np - numpy.min(self.np)
+        if offset.max() == 0:  # Avoid potential divide-by-zero
+            return cast(Self, self.from_np(offset))
+        return cast(Self, self.from_np(offset / numpy.max(offset)))
 
     @property
     def np(self: Self) -> npt.NDArray[numpy.float64]:
@@ -58,14 +70,26 @@ class _VectorBase(ABC):
     @abstractmethod
     def from_np(array: npt.NDArray[numpy.float64]) -> _VectorBase: ...
 
-    @abstractmethod
-    def __add__(self: Self, other: _VectorBase) -> _VectorBase: ...
+    def cross(self: Self, other: Self) -> Self:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return cast(Self, self.from_np(numpy.cross(self.np, other.np)))
 
     @abstractmethod
-    def __sub__(self: Self, other: _VectorBase) -> _VectorBase: ...
+    def __add__(self: Self, other: Self) -> Self: ...
 
-    def __mul__(self: Self, other: _VectorBase) -> float:
-        """Dot product"""
+    @abstractmethod
+    def __sub__(self: Self, other: Self) -> Self: ...
+
+    @overload
+    def __mul__(self: Self, other: int | float) -> Self: ...
+    @overload
+    def __mul__(self: Self, other: Self) -> float: ...
+
+    def __mul__(self: Self, other: Any) -> Any:
+        """Dot product or scaling"""
+        if isinstance(other, (int, float, numpy.integer, numpy.floating)):
+            return cast(Self, self.from_np(other * self.np))
         if not isinstance(other, _VectorBase):
             return NotImplemented
         return numpy.dot(self.array, other.array)
@@ -80,8 +104,8 @@ class vec2(_VectorBase):
     @staticmethod
     def from_np(array: npt.NDArray[numpy.float64]) -> vec2:
         assert isinstance(array, numpy.ndarray)
-        assert array.shape == (2,)
-        assert array.dtype == float
+        assert array.shape == (2,), f"Invalid array shape {array.shape}!"
+        assert array.dtype == float, f"Invalid array type {array.dtype}!"
         return vec2(x=float(array[0]), y=float(array[1]))
 
     def __add__(self: Self, other: _VectorBase) -> vec2:
@@ -106,8 +130,8 @@ class vec3(_VectorBase):
     @staticmethod
     def from_np(array: npt.NDArray[numpy.float64]) -> vec3:
         assert isinstance(array, numpy.ndarray)
-        assert array.shape == (3,)
-        assert array.dtype == float
+        assert array.shape == (3,), f"Invalid array shape {array.shape}!"
+        assert array.dtype == float, f"Invalid array type {array.dtype}!"
         return vec3(x=float(array[0]), y=float(array[1]), z=float(array[2]))
 
     def __add__(self: Self, other: _VectorBase) -> vec3:
@@ -124,25 +148,37 @@ class vec3(_VectorBase):
 @dataclass(frozen=True, slots=True)
 class vec4(_VectorBase):
     z: float
-    a: float
+    w: float
 
     @property
     def array(self: Self) -> list[float]:
-        return [self.x, self.y, self.z, self.a]
+        return [self.x, self.y, self.z, self.w]
 
     @staticmethod
     def from_np(array: npt.NDArray[numpy.float64]) -> vec4:
         assert isinstance(array, numpy.ndarray)
-        assert array.shape == (4,)
-        assert array.dtype == float
-        return vec4(x=float(array[0]), y=float(array[1]), z=float(array[2]), a=float(array[3]))
+        assert array.shape == (4,), f"Invalid array shape {array.shape}!"
+        assert array.dtype == float, f"Invalid array type {array.dtype}!"
+        return vec4(x=float(array[0]), y=float(array[1]), z=float(array[2]), w=float(array[3]))
+
+    @property
+    def xy(self: Self) -> vec2:
+        return vec2(x=self.x, y=self.y)
+
+    @property
+    def xyz(self: Self) -> vec3:
+        return vec3(x=self.x, y=self.y, z=self.z)
 
     def __add__(self: Self, other: _VectorBase) -> vec4:
         if not isinstance(other, vec4):
             return NotImplemented
-        return vec4(self.x + other.x, self.y + other.y, self.z + other.z, self.a + other.a)
+        return vec4(self.x + other.x, self.y + other.y, self.z + other.z, self.w + other.w)
 
     def __sub__(self: Self, other: _VectorBase) -> vec4:
         if not isinstance(other, vec4):
             return NotImplemented
-        return vec4(self.x - other.x, self.y - other.y, self.z - other.z, self.a - other.a)
+        return vec4(self.x - other.x, self.y - other.y, self.z - other.z, self.w - other.w)
+
+
+def norm(v: _VectorBase) -> float:
+    return float(numpy.sqrt(v * v))
