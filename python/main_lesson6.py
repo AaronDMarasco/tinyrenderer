@@ -47,7 +47,7 @@ def lookat(eye: vec3, center: vec3, up: vec3) -> Matrix4f:
         [m_vec.x, m_vec.y, m_vec.z, 0],
         [n_vec.x, n_vec.y, n_vec.z, 0],
         [0, 0, 0, 1],
-    ]) * np.array([
+    ]) @ np.array([
         [1, 0, 0, -center.x],
         [0, 1, 0, -center.y],
         [0, 0, 1, -center.z],
@@ -82,7 +82,7 @@ def main() -> int:
                 clip: list[vec4] = []
                 for entry in face.data:  # Assemble the primitive
                     v = obj_data.vertices[entry.vertex]
-                    clip.append(vec4.from_np(perspective * model_view @ vec4.from_vec3(v, w=1).np))
+                    clip.append(vec4.from_np(perspective @ model_view @ vec4.from_vec3(v, w=1).np))
                 rasterize_lesson_6(clip, viewport, z_buffer, framebuffer, TGAColor_t.random())
 
             framebuffer.write_tga_file(f"{basename}.tga")
