@@ -16,12 +16,6 @@ type Matrix4f = numpy.ndarray[tuple[Literal[4], Literal[4]], numpy.dtype[numpy.f
 type MatrixLike = Matrix2f | Matrix3f | Matrix4f
 
 
-# TODO: Move to a geometry library?
-def norm(v: _VectorBase) -> float:
-    # TODO: Compare to cpp!!!
-    return float(numpy.sqrt(v.np @ v.np))
-
-
 @dataclass(slots=True)
 class ZBuffer:
     vals: list[list[float]] = field(init=False)
@@ -198,3 +192,8 @@ class vec4(_VectorBase):
         if not isinstance(other, vec4):
             return NotImplemented
         return vec4(self.x - other.x, self.y - other.y, self.z - other.z, self.w - other.w)
+
+
+# TODO: Move to a geometry library?
+def norm(v: _VectorBase) -> float:
+    return float(numpy.sqrt(v.np @ v.np))
