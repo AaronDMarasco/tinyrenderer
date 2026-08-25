@@ -22,28 +22,6 @@ def norm(v: _VectorBase) -> float:
     return float(numpy.sqrt(v.np @ v.np))
 
 
-def matrix_multiply(lhs: MatrixLike, rhs: MatrixLike) -> npt.NDArray:
-    _CPP_SOURCE = """
-template<int R1,int C1,int C2>mat<R1,C2> operator*(const mat<R1,C1>& lhs, const mat<C1,C2>& rhs) {
-    mat<R1,C2> result;
-    for (int i=R1; i--; )
-        for (int j=C2; j--; )
-            for (int k=C1; k--; result[i][j]+=lhs[i][k]*rhs[k][j]);
-    return result;
-}
-"""
-    R1: Final = lhs.shape[0]
-    C1: Final = lhs.shape[1]
-    assert rhs.shape[0] == C1, f"Invalid shapes {lhs.shape=} {rhs.shape=}!"
-    C2: Final = rhs.shape[1]
-    res = numpy.zeros(shape=(R1, C2))
-    for i in range(R1):
-        for j in range(C2):
-            for k in range(C1):
-                res[i][j] += lhs[i][k] * rhs[k][j]
-    return res
-
-
 @dataclass(slots=True)
 class ZBuffer:
     vals: list[list[float]] = field(init=False)
@@ -60,8 +38,8 @@ class ZBuffer:
         nparray[numpy.isnan(nparray)] = 0
         width, height = nparray.shape
         # Want to scale from 0..255
-        min_val = nparray.min()
-        max_val = nparray.max()
+        min_val: Final = nparray.min()
+        max_val: Final = nparray.max()
         if min_val == max_val:
             # Just regenerate an empty image
             return TGAImage(w=width, h=height, bpp=1, c=TGAColor(0))
@@ -85,14 +63,10 @@ class _VectorBase(ABC):
 
     @property
     def normalized(self: Self) -> Self:
-        return self / norm(self)
-        # Not sure which algorithm is expected... if we want the linear algebra one,
-        # then testing is unknown... so I'll leave that here...
-        return cast(Self, self.from_np(self.np / numpy.linalg.norm(self.np)))
-        offset = self.np - numpy.min(self.np)
-        if offset.max() == 0:  # Avoid potential divide-by-zero
-            return cast(Self, self.from_np(offset))
-        return cast(Self, self.from_np(offset / numpy.max(offset)))
+        denom: Final = numpy.linalg.norm(self.np)
+        if denom == 0:
+            raise ZeroDivisionError
+        return cast(Self, self.from_np(self.np / denom))
 
     @property
     def np(self: Self) -> npt.NDArray[numpy.float64]:
@@ -129,6 +103,8 @@ class _VectorBase(ABC):
     def __truediv__(self: Self, other: int | float) -> Self:
         """Scaling"""
         if isinstance(other, (int, float, numpy.integer, numpy.floating)):
+            if other == 0:
+                raise ZeroDivisionError
             return cast(Self, self.from_np(self.np / other))
         return NotImplemented
 

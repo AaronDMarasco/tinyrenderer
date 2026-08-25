@@ -10,7 +10,7 @@ from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 from ..tgaimage import TGAColor
-from ..trtypes import Matrix2f, Matrix3f, Matrix4f, MatrixLike, ZBuffer, _VectorBase, vec2, vec3, vec4
+from ..trtypes import Matrix2f, Matrix3f, Matrix4f, MatrixLike, ZBuffer, _VectorBase, norm, vec2, vec3, vec4
 
 # positive_integers  = st.integers(min_value=0, max_value=2**31 - 1)
 reasonable_integers = st.integers(min_value=-(2**31), max_value=2**31 - 1)
@@ -115,24 +115,19 @@ class TestVector:
             expected += uut1.w * uut2.w
         assert res == pytest.approx(expected)
 
-    @pytest.mark.skip("Bad test")
-    @given(in_min=reasonable_integers, in_max=reasonable_integers)
-    def test_normalize(self: Self, in_min: int, in_max: int, vec_param: VecParam) -> None:
-        assume(in_min < in_max)
+    @given(in_data=st.lists(st.floats(allow_nan=False, allow_infinity=False, width=32), min_size=4, max_size=4))
+    def test_normalize(self: Self, in_data: list[float], vec_param: VecParam) -> None:
+        # Compares the CPP way to numpy and ensures they're the same
         width, class_ = vec_param
-        # Create values that are all min-value except the first one is max
-        vals = [in_min] * width
-        vals[0] = in_max
-        uut = class_(*vals)
-        res = uut.normalized
-        assert res.x == pytest.approx(1)
-        assert res.y == pytest.approx(0)
-        if width >= 3:
-            assert isinstance(res, (vec3, vec4))
-            assert res.z == pytest.approx(0)
-        if width >= 4:
-            assert isinstance(res, vec4)
-            assert res.w == pytest.approx(0)
+        uut = class_(*in_data[0:width])
+
+        try:
+            cpp = (uut / norm(uut)).array
+            py = uut.normalized.array
+        except ZeroDivisionError:
+            assume(False)  # Tell hypothesis to stop trying that
+        for i in range(width):
+            assert py[i] == pytest.approx(cpp[i])
 
     # vec * vec is tested elsewhere in test_dot_product
 
