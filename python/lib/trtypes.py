@@ -23,13 +23,13 @@ class ZBuffer:
     def __init__(self: Self, *, width: int, height: int) -> None:
         self.vals = cast(list[list[float]], numpy.full((width, height), numpy.nan, dtype=float).tolist())
 
-    def to_tga(self: Self, *, nan_zero: bool = False) -> TGAImage:
-        """If nan_zero is not set, any unset values will explode"""
+    def to_tga(self: Self, *, allow_nan: bool = True, nan_val: int = -1000) -> TGAImage:
+        """If allow_nan is not set, any unset values will explode"""
         nparray = numpy.array(self.vals, dtype=float)
-        if not nan_zero and numpy.isnan(nparray).any():
+        if not allow_nan and numpy.isnan(nparray).any():
             err_msg = "ZBuffer had NaN and not told to assume zero!"
             raise ValueError(err_msg)
-        nparray[numpy.isnan(nparray)] = 0
+        nparray[numpy.isnan(nparray)] = nan_val  # We used to use zero, but -1000 is the default in later lessons
         width, height = nparray.shape
         # Want to scale from 0..255
         min_val: Final = nparray.min()

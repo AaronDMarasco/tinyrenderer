@@ -275,26 +275,26 @@ class TestZBuffer:
         uut = ZBuffer(width=20, height=30)
         assert isnan(uut.vals[19][29])
 
-    @pytest.mark.parametrize("nan_zero", [True, False], ids=["nan_zero=True", "nan_zero=False"])
-    def test_to_tga_1x1(self: Self, nan_zero: bool) -> None:
+    @pytest.mark.parametrize("allow_nan", [True, False], ids=["allow_nan=True", "allow_nan=False"])
+    def test_to_tga_1x1(self: Self, allow_nan: bool) -> None:
         uut = ZBuffer(width=1, height=1)
-        if not nan_zero:
+        if not allow_nan:
             with pytest.raises(ValueError):
-                fb = uut.to_tga(nan_zero=False)
+                fb = uut.to_tga(allow_nan=False)
         else:
-            fb = uut.to_tga(nan_zero=True)
+            fb = uut.to_tga(allow_nan=True, nan_val=0)
             assert fb.get(0, 0) == TGAColor(0)
 
-    @pytest.mark.parametrize("nan_zero", [True, False], ids=["nan_zero=True", "nan_zero=False"])
-    def test_to_tga_2x3(self: Self, nan_zero: bool) -> None:
+    @pytest.mark.parametrize("allow_nan", [True, False], ids=["allow_nan=True", "allow_nan=False"])
+    def test_to_tga_2x3(self: Self, allow_nan: bool) -> None:
         uut = ZBuffer(width=2, height=3)
-        if not nan_zero:
+        if not allow_nan:
             with pytest.raises(ValueError):
-                fb = uut.to_tga(nan_zero=False)
+                fb = uut.to_tga(allow_nan=False)
         else:
             uut.vals[0][0] = 100
             uut.vals[1][2] = 100
-            fb = uut.to_tga(nan_zero=True)
+            fb = uut.to_tga(allow_nan=True, nan_val=0)
             # At this point, 0..100 should be 0..255
             for x in range(2):
                 for y in range(3):
@@ -307,6 +307,6 @@ class TestZBuffer:
         uut = ZBuffer(width=20, height=1)
         for i in range(20):
             uut.vals[i][0] = -2000 + (i * 2000)  # -2000 to 36000 normalized should be about 13.42
-        fb = uut.to_tga(nan_zero=True)
+        fb = uut.to_tga(allow_nan=True, nan_val=0)
         for i in range(20):
             assert fb.get(i, 0) == TGAColor(round(i * 13.42))

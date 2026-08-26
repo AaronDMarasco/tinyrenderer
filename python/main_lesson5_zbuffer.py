@@ -109,7 +109,7 @@ def main() -> int:
                 triangle_barycentric_lesson_5(a, b, c, z_buffer, framebuffer, TGAColor_t.random())
 
             framebuffer.write_tga_file(f"{basename}.tga")
-            z_buffer.to_tga(nan_zero=True).write_tga_file(f"{basename}_z.tga")
+            z_buffer.to_tga(allow_nan=True, nan_val=0).write_tga_file(f"{basename}_z.tga")
 
         except Exception as err:
             print(f"Could not process {fname}: {err}")
