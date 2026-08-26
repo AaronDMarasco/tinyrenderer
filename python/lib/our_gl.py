@@ -84,10 +84,7 @@ def init_zbuffer(width: int, height: int) -> None:
 def rasterize(
     clip: Triangle,
     shader: IShader,
-    # viewport: Matrix4f,  # Not in C++
-    # z_buffer: ZBuffer,  # Not in C++
     framebuffer: TGAImage,
-    # color: TGAColor_t,# Not in C++
 ) -> None:
     ndc: Final[list[vec4]] = [
         clip[0] / clip[0].w,
@@ -95,9 +92,9 @@ def rasterize(
         clip[2] / clip[2].w,
     ]  # normalized device coordinates
     screen: Final[list[vec2]] = [
-        vec4.from_np(view_port @ ndc[0].np).xy,
-        vec4.from_np(view_port @ ndc[1].np).xy,
-        vec4.from_np(view_port @ ndc[2].np).xy,
+        vec4.from_np(view_port @ ndc[0]).xy,
+        vec4.from_np(view_port @ ndc[1]).xy,
+        vec4.from_np(view_port @ ndc[2]).xy,
     ]  # screen coordinates
     ABC: Final[Matrix3f] = np.array([
         [screen[0].x, screen[0].y, 1.0],
@@ -117,7 +114,7 @@ def rasterize(
         for y in range(bb_min_y, bb_max_y + 1):
             ABC_invert_transpose = np.linalg.inv(ABC.T)
             # bc = barycentric coordinates of {x,y} w.r.t the triangle
-            bc: vec3 = vec3.from_np(ABC_invert_transpose @ vec3(x, y, 1).np)
+            bc: vec3 = vec3.from_np(ABC_invert_transpose @ vec3(x, y, 1))
             if bc.x < 0 or bc.y < 0 or bc.z < 0:
                 continue  # negative barycentric coordinate => the pixel is outside the triangle
             z = bc * vec3(ndc[0].z, ndc[1].z, ndc[2].z)

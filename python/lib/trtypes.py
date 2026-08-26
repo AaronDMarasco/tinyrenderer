@@ -83,6 +83,11 @@ class _VectorBase(ABC):
     def np(self: Self) -> npt.NDArray[numpy.float64]:
         return numpy.array(self.array, dtype=float)
 
+    def __array__(
+        self: Self, dtype: npt.DTypeLike | None = None, copy: bool | None = None
+    ) -> npt.NDArray[numpy.float64]:
+        return numpy.array(self.array, dtype=dtype, copy=copy)
+
     @staticmethod
     @abstractmethod
     def from_np(array: npt.NDArray[numpy.float64]) -> _VectorBase: ...
