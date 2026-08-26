@@ -8,18 +8,12 @@ from typing import Final
 import numpy as np
 
 from lib.objreader import OBJ_Data
-from lib.render import triangle_barycentric_lesson_4
 from lib.tgaimage import TGAColor_t, TGAImage
 from lib.trtypes import vec3
+from main_lesson4_triangle import triangle_barycentric_lesson_4
 
 width: Final = 800
 height: Final = 800
-
-# white: Final = TGAColor(255, 255, 255, 255).resize(bpp=3)  # Attention: BGRA order
-# green: Final = TGAColor(0, 255, 0, 255).resize(bpp=3)
-# red: Final = TGAColor(0, 0, 255, 255).resize(bpp=3)
-# blue: Final = TGAColor(255, 128, 64, 255).resize(bpp=3)
-# yellow: Final = TGAColor(0, 200, 255, 255).resize(bpp=3)
 
 
 def rot(v: vec3, rotation: float = pi / 6) -> vec3:

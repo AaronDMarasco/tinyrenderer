@@ -3,13 +3,7 @@ from __future__ import annotations
 import sys
 from typing import Final
 
-from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
-
-white: Final = TGAColor(255, 255, 255, 255).resize(bpp=3)  # Attention: BGRA order
-green: Final = TGAColor(0, 255, 0, 255).resize(bpp=3)
-red: Final = TGAColor(0, 0, 255, 255).resize(bpp=3)
-blue: Final = TGAColor(255, 128, 64, 255).resize(bpp=3)
-yellow: Final = TGAColor(0, 200, 255, 255).resize(bpp=3)
+from lib.tgaimage import TGAColor_t, TGAImage, blue, green, red, white, yellow
 
 
 def line(ax: int, ay: int, bx: int, by: int, framebuffer: TGAImage, color: TGAColor_t) -> None:

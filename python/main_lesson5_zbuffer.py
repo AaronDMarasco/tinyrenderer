@@ -8,18 +8,50 @@ from typing import Final
 import numpy as np
 
 from lib.objreader import OBJ_Data
-from lib.render import triangle_barycentric_lesson_5
 from lib.tgaimage import TGAColor_t, TGAImage
 from lib.trtypes import ZBuffer, vec3
 
 width: Final = 800
 height: Final = 800
 
-# white: Final = TGAColor(255, 255, 255, 255).resize(bpp=3)  # Attention: BGRA order
-# green: Final = TGAColor(0, 255, 0, 255).resize(bpp=3)
-# red: Final = TGAColor(0, 0, 255, 255).resize(bpp=3)
-# blue: Final = TGAColor(255, 128, 64, 255).resize(bpp=3)
-# yellow: Final = TGAColor(0, 200, 255, 255).resize(bpp=3)
+
+def _signed_triangle_area(ax: int, ay: int, bx: int, by: int, cx: int, cy: int) -> float:
+    return 0.5 * ((by - ay) * (bx + ax) + (cy - by) * (cx + bx) + (ay - cy) * (ax + cx))
+
+
+def triangle_barycentric_lesson_5(
+    a: tuple[int, int, int],
+    b: tuple[int, int, int],
+    c: tuple[int, int, int],
+    z_buffer: ZBuffer,
+    framebuffer: TGAImage,
+    color: TGAColor_t,
+) -> None:
+    assert isinstance(z_buffer, ZBuffer), "Wrong version of triangle_barycentric called!"
+    ax, ay, az = a
+    bx, by, bz = b
+    cx, cy, cz = c
+    total_area: Final = _signed_triangle_area(ax, ay, bx, by, cx, cy)
+    if total_area < 1:
+        return  # Early return for backface culling + discarding triangles that cover less than a pixel
+
+    bb_min_x: Final[int] = max(0, min(ax, bx, cx))  # bounding box for the triangle
+    bb_max_x: Final[int] = min(framebuffer.width, max(ax, bx, cx))  # defined by its top left and bottom right corners
+    bb_min_y: Final[int] = max(0, min(ay, by, cy))  # but bound by canvas size
+    bb_max_y: Final[int] = min(framebuffer.height, max(ay, by, cy))
+
+    for x in range(bb_min_x, bb_max_x + 1):
+        for y in range(bb_min_y, bb_max_y + 1):
+            alpha = _signed_triangle_area(x, y, bx, by, cx, cy) / total_area
+            beta = _signed_triangle_area(x, y, cx, cy, ax, ay) / total_area
+            gamma = _signed_triangle_area(x, y, ax, ay, bx, by) / total_area
+            if alpha < 0 or beta < 0 or gamma < 0:
+                continue  # negative barycentric coordinate => the pixel is outside the triangle
+            z = alpha * az + beta * bz + gamma * cz
+            if z <= z_buffer.vals[x][y]:  # Behind what we've already drawn
+                continue
+            z_buffer.vals[x][y] = z
+            framebuffer.set(x, y, color)
 
 
 def rot(v: vec3, rotation: float = pi / 6) -> vec3:

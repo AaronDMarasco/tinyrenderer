@@ -19,9 +19,6 @@ uint16_t: TypeAlias = np.uint16
 
 rng = np.random.default_rng()
 
-
-__all__ = ["TGAColor", "TGAColor_from_raw", "TGAHeader", "TGAImage", "uint8_t", "uint16_t"]
-
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
@@ -374,3 +371,10 @@ class TGAImage:
 
     def __str__(self: Self) -> str:
         return f"{self.width}x{self.height}/{self.bpp}"
+
+
+white: Final = TGAColor(255, 255, 255, 255).resize(bpp=3)  # Attention: BGRA order
+green: Final = TGAColor(0, 255, 0, 255).resize(bpp=3)
+red: Final = TGAColor(0, 0, 255, 255).resize(bpp=3)
+blue: Final = TGAColor(255, 128, 64, 255).resize(bpp=3)
+yellow: Final = TGAColor(0, 200, 255, 255).resize(bpp=3)
