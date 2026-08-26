@@ -29,11 +29,11 @@ class RandomShader(our_gl.IShader):
 
     def vertex(self: Self, face: int, vert: int) -> vec4:
         v: Final[vec3] = self.model.vert(face, vert)  # current vertex in object coordinates
-        gl_position: Final[vec4] = vec4.from_np(vec4.from_vec3(v, w=1).np @ our_gl.model_view)
+        gl_position: Final[vec4] = vec4.from_np(our_gl.model_view @ vec4.from_vec3(v, w=1).np)
         self.tri[vert] = gl_position.xyz  # in eye coordinates
         return vec4.from_np(our_gl.perspective @ gl_position.np)  # in clip coordinates
 
-    def fragment(self: Self, bar: vec3) -> tuple[bool, TGAColor_t]:
+    def fragment(self: Self, _bar: vec3) -> tuple[bool, TGAColor_t]:
         return (False, self.color)  # do not discard the pixel
 
 
