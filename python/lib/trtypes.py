@@ -16,6 +16,19 @@ type Matrix4f = numpy.ndarray[tuple[Literal[4], Literal[4]], numpy.dtype[numpy.f
 type MatrixLike = Matrix2f | Matrix3f | Matrix4f
 
 
+@overload
+def empty_matrix(rc: Literal[2], /) -> Matrix2f: ...
+@overload
+def empty_matrix(rc: Literal[3], /) -> Matrix3f: ...
+@overload
+def empty_matrix(rc: Literal[4], /) -> Matrix4f: ...
+def empty_matrix(rc: int, /) -> MatrixLike:
+    if not (2 <= rc <= 4):
+        err_msg = f"Couldn't determine type {rc}!"
+        raise ValueError(err_msg)
+    return cast(MatrixLike, numpy.zeros(shape=(rc, rc), dtype=float))
+
+
 @dataclass(slots=True)
 class ZBuffer:
     vals: list[list[float]] = field(init=False)
@@ -196,3 +209,6 @@ class vec4(_VectorBase):
         if not isinstance(other, vec4):
             return NotImplemented
         return vec4(self.x - other.x, self.y - other.y, self.z - other.z, self.w - other.w)
+
+
+type Triangle = tuple[vec4, vec4, vec4]
