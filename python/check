@@ -1,17 +1,23 @@
 #!/bin/bash
 clear
-# export QUICK_CHECK=x
+# Only do formatting/linting:
+# LINT_ONLY=x
+# Run the profiler:
+# DO_PROFILE=x
+# Skip some python self tests:
+export QUICK_CHECK=x
 set -e
 uv --preview-features format format --version "0.16.3"
 uv run ssort --check --diff
 set +e
 uv run ruff check .
 uv run mypy .
-if true; then
-    if true; then
+if [[ -z ${LINT_ONLY} ]]; then
+    if [[ -z ${DO_PROFILE} ]]; then
         uv run pytest -vv  # --capture=tee-sys --durations=5
     else
         uv run python -m cProfile -o out.prof .venv/bin/pytest -vv
-        uv run snakeviz out.prof # --server
+        # Comment out server part to have it launch browser too:
+        uv run snakeviz out.prof --server
     fi
 fi
