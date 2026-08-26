@@ -110,6 +110,12 @@ class OBJ_Data:
                 case _:
                     logger.info("Could not parse comment: %s", comment)
 
+    def vert(self: Self, iface: int, nthvert: int) -> OBJ_Vertex:
+        """Helper ported from C++"""
+        face: Final = self.faces[iface]
+        vertex: Final = face[nthvert].vertex
+        return self.vertices[vertex]
+
     @staticmethod
     def from_file(infile: str | Path) -> OBJ_Data:
         res = OBJ_Data()
