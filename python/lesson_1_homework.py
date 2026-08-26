@@ -37,8 +37,8 @@ def main() -> int:
     height: Final = 2048
 
     # The numbers go from -1..1 so we need to map them from the center of the image...
-    width_center: Final[int] = width // 2
-    height_center: Final[int] = height // 2
+    width_center: Final[int] = width // 2 - 1
+    height_center: Final[int] = height // 2 - 1
 
     framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
 
@@ -53,16 +53,11 @@ def main() -> int:
         for i in range(3):
             this = i % 3
             that = (i + 1) % 3
-            # The extra "-1" is to shift the image into the correct quadrant; e.g.:
-            # DC => AB
-            # BA    CD
-            # Because our origin is the bottom left corner of C but the OBJ is at center of image
-            # (bottom left corner of C)
             line(
-                round((points[this].x - 1) * (width_center)),
-                round((points[this].y - 1) * (height_center)),
-                round((points[that].x - 1) * (width_center)),
-                round((points[that].y - 1) * (height_center)),
+                round((points[this].x + 1) * (width_center)),
+                round((points[this].y + 1) * (height_center)),
+                round((points[that].x + 1) * (width_center)),
+                round((points[that].y + 1) * (height_center)),
                 framebuffer,
                 red,
             )
