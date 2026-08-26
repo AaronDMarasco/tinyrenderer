@@ -1,27 +1,64 @@
 from __future__ import annotations
 
+# import logging
 import sys
+from pathlib import Path
 from typing import Final
 
+import numpy as np
+
+from lib.objreader import OBJ_Data
 from lib.render import triangle
 from lib.tgaimage import TGAColor, TGAImage
 
-white: Final = TGAColor(255, 255, 255, 255).resize(bpp=3)  # Attention: BGRA order
-green: Final = TGAColor(0, 255, 0, 255).resize(bpp=3)
-red: Final = TGAColor(0, 0, 255, 255).resize(bpp=3)
-blue: Final = TGAColor(255, 128, 64, 255).resize(bpp=3)
-yellow: Final = TGAColor(0, 200, 255, 255).resize(bpp=3)
+# logging.getLogger('lib.objreader').setLevel(logging.INFO)
 
 
 def main() -> int:
-    width: Final = 128
-    height: Final = 128
+    width: Final = 2047
+    height: Final = 2048
 
-    framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
-    triangle((7, 45), (35, 100), (45, 60), framebuffer, red)
-    triangle((120, 35), (90, 5), (45, 110), framebuffer, white, fill=True)
-    triangle((115, 83), (80, 90), (85, 120), framebuffer, green)
-    framebuffer.write_tga_file("framebuffer.tga")
+    # The numbers go from -1..1 so we need to map them from the center of the image...
+    width_center: Final[int] = width // 2
+    height_center: Final[int] = height // 2
+
+    rng = np.random.default_rng()  # seed=42)
+
+    find_output = """
+../obj/boggie/head.obj
+../obj/boggie/body.obj
+../obj/boggie/eyes.obj
+../obj/african_head/african_head.obj
+../obj/african_head/african_head_eye_inner.obj
+../obj/african_head/african_head_eye_outer.obj
+../obj/floor.obj
+../obj/diablo3_pose/diablo3_pose.obj
+"""
+    for fname in find_output.split():
+        basename = Path(fname).name[:-4]
+        try:
+            framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
+            obj_data = OBJ_Data.from_file(fname)
+            for face in obj_data.faces:
+                idx = (face[0].vertex, face[1].vertex, face[2].vertex)
+                # Read those out
+                points = (obj_data.vertices[idx[0]], obj_data.vertices[idx[1]], obj_data.vertices[idx[2]])
+                # Fix quadrant and scaling
+                a = (round((points[0].x - 1) * width_center), round((points[0].y - 1) * height_center))
+                b = (round((points[1].x - 1) * width_center), round((points[1].y - 1) * height_center))
+                c = (round((points[2].x - 1) * width_center), round((points[2].y - 1) * height_center))
+
+                triangle(
+                    a,
+                    b,
+                    c,
+                    framebuffer,
+                    TGAColor(int(rng.integers(255)), int(rng.integers(255)), int(rng.integers(255))),
+                )
+
+            framebuffer.write_tga_file(f"{basename}.tga")
+        except Exception as err:
+            print(f"Could not process {fname}: {err}")
 
     return 0
 

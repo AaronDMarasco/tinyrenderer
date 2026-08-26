@@ -20,21 +20,33 @@ up: Final = vec3(0, 1, 0)  # Camera up vector
 
 
 def viewport_gen(x: int, y: int, width: int = width, height: int = height) -> Matrix4f:
+    h_2: Final = height / 2
+    w_2: Final = width / 2
+    # fmt: off
+    # ruff: ignore[multiple-spaces-after-comma,whitespace-after-open-bracket]
     return np.array([
-        [width / 2, 0, 0, x + width / 2],
-        [0, height / 2, 0, y + height / 2],
-        [0, 0, 1, 0],
-        [0, 0, 0, 1],
+        [w_2,   0,  0, x + w_2],
+        [  0, h_2,  0, y + h_2],
+        [  0,   0,  1,       0],
+        [  0,   0,  0,       1],
     ])
+
+
+# fmt: on
 
 
 def perspective_gen(f: float) -> Matrix4f:
+    # fmt: off
+    # ruff: ignore[multiple-spaces-after-comma,missing-whitespace-around-arithmetic-operator]
     return np.array([
-        [1, 0, 0, 0],
-        [0, 1, 0, 0],
-        [0, 0, 1, 0],
-        [0, 0, -1 / f, 1],
+        [1, 0,    0,  0],
+        [0, 1,    0,  0],
+        [0, 0,    1,  0],
+        [0, 0, -1/f,  1],
     ])
+
+
+# fmt: on
 
 
 def lookat(eye: vec3, center: vec3, up: vec3) -> Matrix4f:
@@ -42,17 +54,22 @@ def lookat(eye: vec3, center: vec3, up: vec3) -> Matrix4f:
     n_vec = (eye - center).normalized
     l_vec = up.cross(n_vec).normalized
     m_vec = n_vec.cross(l_vec).normalized
+    # fmt: off
+    # ruff: ignore[multiple-spaces-after-comma,whitespace-after-open-bracket]
     return np.array([
         [l_vec.x, l_vec.y, l_vec.z, 0],
         [m_vec.x, m_vec.y, m_vec.z, 0],
         [n_vec.x, n_vec.y, n_vec.z, 0],
-        [0, 0, 0, 1],
+        [      0,       0,       0, 1],
     ]) @ np.array([
         [1, 0, 0, -center.x],
         [0, 1, 0, -center.y],
         [0, 0, 1, -center.z],
-        [0, 0, 0, 1],
+        [0, 0, 0,         1],
     ])
+
+
+# fmt: on
 
 
 def main() -> int:
@@ -68,8 +85,9 @@ def main() -> int:
 ../obj/diablo3_pose/diablo3_pose.obj
 """
 
-    model_view: Final = lookat(eye, center, up)
     perspective: Final = perspective_gen((eye - center).norm)
+    model_view: Final = lookat(eye, center, up)
+    persp_xform: Final = perspective @ model_view  # Compute outside the loop
     viewport: Final = viewport_gen(width // 16, height // 16, width * 7 // 8, height * 7 // 8)
 
     for fname in find_output.split():
@@ -82,7 +100,7 @@ def main() -> int:
                 clip: list[vec4] = []
                 for entry in face.data:  # Assemble the primitive
                     v = obj_data.vertices[entry.vertex]
-                    clip.append(vec4.from_np(perspective @ model_view @ vec4.from_vec3(v, w=1).np))
+                    clip.append(vec4.from_np(persp_xform @ vec4.from_vec3(v, w=1).np))
                 rasterize_lesson_6(clip, viewport, z_buffer, framebuffer, TGAColor_t.random())
 
             framebuffer.write_tga_file(f"{basename}.tga")
