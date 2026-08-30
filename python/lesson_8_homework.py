@@ -4,8 +4,6 @@ import sys
 from pathlib import Path
 from typing import Final, Self
 
-import numpy as np
-
 import lib.our_gl as our_gl
 from lib.objreader import OBJ_Data
 from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
@@ -74,13 +72,12 @@ class PhongShader(our_gl.IShader):
         # ic(np.linalg.norm(self.vns), self.vns, bar, normal_vector_n, np.linalg.norm(normal_vector_n))
 
         # Compute 0..1 for diffuse term
-        diffuse: Final = max(0, self.sun_vector_l * normal_vector_n)
+        diffuse_raw: Final[float] = self.sun_vector_l * normal_vector_n
+        diffuse: Final = max(0, diffuse_raw)  # Math Confirmed
         assert 0 <= diffuse <= 1, f"'{diffuse=}' should be 0..1 inclusive?"
 
         # Compute 0..1 for specular term
-        vector_r: Final[vec3] = (
-            normal_vector_n * (normal_vector_n * self.sun_vector_l) * 2 - self.sun_vector_l
-        ).normalized
+        vector_r: Final[vec3] = (normal_vector_n * diffuse_raw * 2 - self.sun_vector_l).normalized
         # specular intensity - note that the camera lies on the z-axis (in eye coordinates),
         # therefore simple r.z, since (0,0,1)*(r.x, r.y, r.z) = r.z
         specular: Final = pow(max(0, vector_r.z), self.specular_shine)

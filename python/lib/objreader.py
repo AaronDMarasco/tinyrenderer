@@ -61,10 +61,10 @@ class OBJ_Data:
     comments: list[str] = field(init=False, default_factory=list)
     faces: list[OBJ_Face] = field(init=False, default_factory=list)
     texture_vs: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
-    unknowns: list[str] = field(init=False, default_factory=list)
     # Insert a dummy vertex point to make everything 1-based to match face's vertex index:
     vertices: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
     v_normals: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
+    # unknowns: list[str] = field(init=False, default_factory=list)
 
     @property
     def groups(self: Self) -> set[str | None]:
@@ -81,8 +81,8 @@ class OBJ_Data:
     def add_texture_v(self: Self, vertex: OBJ_Vertex) -> None:
         self.texture_vs.append(vertex)
 
-    def add_unknown(self: Self, string: str) -> None:
-        self.unknowns.append(string)
+    # # def add_unknown(self: Self, string: str) -> None:
+    # #     self.unknowns.append(string)
 
     def add_vertex(self: Self, vertex: OBJ_Vertex) -> None:
         self.vertices.append(vertex)
@@ -180,7 +180,7 @@ class OBJ_Data:
                         res.add_v_normal(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
                     case _:
                         logger.debug("Could not interpret line %d: %s", line_no, line.rstrip())
-                        res.add_unknown(line.rstrip())
+                        # res.add_unknown(line.rstrip())
                         raise ValueError(line.rstrip())
         logger.debug("Read OBJ file %s: %s", Path(infile).name, res)
         res.verify()
