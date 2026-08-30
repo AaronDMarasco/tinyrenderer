@@ -26,6 +26,8 @@ class OBJ_Face_entry:
 @dataclass(frozen=True, slots=True)
 class OBJ_Face:
     data: tuple[OBJ_Face_entry, OBJ_Face_entry, OBJ_Face_entry]
+    group: str | None = field(default=None, kw_only=True)
+    smooth: int | None = field(default=None, kw_only=True)
 
     def __getitem__(self: Self, idx: int):
         return self.data[idx]
@@ -48,6 +50,9 @@ FACE_RE: Final = re.compile(
 V_NORMAL_RE: Final = re.compile(VERTEX_RE.pattern.replace("^v", "^vn"))
 TEXTURE_V_RE: Final = re.compile(VERTEX_RE.pattern.replace("^v", "^vt"))
 TEXTURE_V_RE_2: Final = re.compile(rf"^vt\s+(?P<x>{FLOATING_RE})\s+(?P<y>{FLOATING_RE})\s*$")
+GROUP_RE: Final = re.compile(r"^g\s*(\w*)$")
+SMOOTH_RE: Final = re.compile(r"^s\s+(\d+|off)$")
+
 _red3: Final[TGAColor_t] = TGAColor(0, 0, 255)
 
 
@@ -55,11 +60,16 @@ _red3: Final[TGAColor_t] = TGAColor(0, 0, 255)
 class OBJ_Data:
     comments: list[str] = field(init=False, default_factory=list)
     faces: list[OBJ_Face] = field(init=False, default_factory=list)
-    texture_vs: list[OBJ_Vertex] = field(init=False, default_factory=list)
+    texture_vs: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
     unknowns: list[str] = field(init=False, default_factory=list)
     # Insert a dummy vertex point to make everything 1-based to match face's vertex index:
     vertices: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
-    v_normals: list[OBJ_Vertex] = field(init=False, default_factory=list)
+    v_normals: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
+
+    @property
+    def groups(self: Self) -> set[str | None]:
+        groups = {f.group for f in self.faces}
+        return groups
 
     def add_comment(self: Self, comment: str) -> None:
         for c in comment[1:].lstrip().split(","):  # Some are doubled up; remove # and split on ,
@@ -91,13 +101,13 @@ class OBJ_Data:
                     logger.debug("Faces count confirmed (%d)", icount)
                 case (count, "texture vertices") | (count, "coords texture"):  # Seems to be an alias?
                     icount = int(count)
-                    assert (have := len(self.texture_vs)) == icount, (
+                    assert (have := len(self.texture_vs) - 1) == icount, (
                         f"Incorrect number of texture vertices ({have=} expect={icount})"
                     )
                     logger.debug("Texture vertex count confirmed (%d)", icount)
                 case (count, "vertex normals"):
                     icount = int(count)
-                    assert (have := len(self.v_normals)) == icount, (
+                    assert (have := len(self.v_normals) - 1) == icount, (
                         f"Incorrect number of vertex normals ({have=} expect={icount})"
                     )
                     logger.debug("Vertex normal count confirmed (%d)", icount)
@@ -110,6 +120,12 @@ class OBJ_Data:
                 case _:
                     logger.info("Could not parse comment: %s", comment)
 
+    def normal(self: Self, iface: int, nthvert: int) -> OBJ_Vertex:
+        """Helper ported from C++"""
+        face: Final = self.faces[iface]
+        n_vertex: Final = face[nthvert].normal
+        return self.v_normals[n_vertex]
+
     def vert(self: Self, iface: int, nthvert: int) -> OBJ_Vertex:
         """Helper ported from C++"""
         face: Final = self.faces[iface]
@@ -119,6 +135,8 @@ class OBJ_Data:
     @staticmethod
     def from_file(infile: str | Path) -> OBJ_Data:
         res = OBJ_Data()
+        current_group = None
+        current_smooth = None
         with open(infile, encoding="utf-8") as ifile:
             for line_no, line in enumerate(ifile, 1):
                 match line:
@@ -127,6 +145,15 @@ class OBJ_Data:
                         pass
                     case _ if line.startswith("#"):
                         res.add_comment(line.rstrip())
+                    case _ if m := GROUP_RE.match(line):
+                        # A blank seems to clear it (assumed)
+                        if m[1].strip() == "":
+                            current_group = None
+                            current_smooth = None
+                        else:
+                            current_group = m[1]
+                    case _ if m := SMOOTH_RE.match(line):
+                        current_smooth = None if m[1] == "off" else int(m[1])
                     case _ if m := FACE_RE.match(line):
                         f0 = OBJ_Face_entry(
                             vertex=int(m["vertex_0"]), texture=int(m["texture_0"]), normal=int(m["normal_0"])
@@ -137,7 +164,7 @@ class OBJ_Data:
                         f2 = OBJ_Face_entry(
                             vertex=int(m["vertex_2"]), texture=int(m["texture_2"]), normal=int(m["normal_2"])
                         )
-                        res.add_face(OBJ_Face((f0, f1, f2)))
+                        res.add_face(OBJ_Face((f0, f1, f2), group=current_group, smooth=current_smooth))
                     case _ if m := TEXTURE_V_RE.match(line):
                         res.add_texture_v(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
                     case _ if m := TEXTURE_V_RE_2.match(line):
@@ -154,6 +181,7 @@ class OBJ_Data:
                     case _:
                         logger.debug("Could not interpret line %d: %s", line_no, line.rstrip())
                         res.add_unknown(line.rstrip())
+                        raise ValueError(line.rstrip())
         logger.debug("Read OBJ file %s: %s", Path(infile).name, res)
         res.verify()
         return res

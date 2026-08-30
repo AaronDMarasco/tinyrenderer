@@ -10,6 +10,7 @@ from .trtypes import Matrix3f, Matrix4f, Triangle, ZBuffer, empty_matrix, vec2, 
 
 # Global module-level state variables (ugh):
 model_view: Matrix4f = empty_matrix(4)
+model_view_IT: Matrix4f = empty_matrix(4)  # Inverse/Transposed version
 view_port: Matrix4f = empty_matrix(4)
 perspective: Matrix4f = empty_matrix(4)
 z_buffer: ZBuffer = ZBuffer(width=1, height=1)
@@ -43,9 +44,9 @@ def lookat(eye: vec3, center: vec3, up: vec3) -> None:
         [0, 0, 1, -center.z],
         [0, 0, 0,         1],
     ])
-
-
-# fmt: on
+    # fmt: on
+    global model_view_IT
+    model_view_IT = np.linalg.inv(model_view.T)
 
 
 def init_perspective(f: float) -> None:
