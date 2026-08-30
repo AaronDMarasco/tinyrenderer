@@ -86,6 +86,7 @@ class _VectorBase(ABC):
     def __array__(
         self: Self, dtype: npt.DTypeLike | None = None, copy: bool | None = None
     ) -> npt.NDArray[numpy.float64]:
+        # This allows numpy to treat us as "native" data
         return numpy.array(self.array, dtype=dtype, copy=copy)
 
     @staticmethod

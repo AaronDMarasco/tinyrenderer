@@ -122,7 +122,7 @@ def rasterize(
             bc = ABC_invert_transpose @ [x, y, 1]
             if any(v < 0 for v in bc):
                 continue  # negative barycentric coordinate => the pixel is outside the triangle
-            z = bc @ [ndc[0].z, ndc[1].z, ndc[2].z]
+            z: float = (bc @ [ndc[0].z, ndc[1].z, ndc[2].z]).item()
             if z <= z_buffer.vals[x][y]:  # Behind what we've already drawn
                 continue
             discard, color = shader.fragment(bc.tolist())
