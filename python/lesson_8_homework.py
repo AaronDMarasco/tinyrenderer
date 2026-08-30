@@ -67,13 +67,11 @@ class PhongShader(our_gl.IShader):
     def fragment(self: Self, bar: list[float]) -> tuple[bool, TGAColor_t]:
         assert len(bar) == 3, f"Invalid {bar=}"
         # In Lesson 7, we computed a normal to the entire triangle. Now we use provided ones (self.vns)
-        normal_vector_n: Final[vec3] = (self.vns[0] * bar[0] + self.vns[1] * bar[1] + self.vns[1] * bar[2]).normalized
-        # from icecream import ic
-        # ic(np.linalg.norm(self.vns), self.vns, bar, normal_vector_n, np.linalg.norm(normal_vector_n))
+        normal_vector_n: Final[vec3] = (self.vns[0] * bar[0] + self.vns[1] * bar[1] + self.vns[2] * bar[2]).normalized
 
         # Compute 0..1 for diffuse term
-        diffuse_raw: Final[float] = self.sun_vector_l * normal_vector_n
-        diffuse: Final = max(0, diffuse_raw)  # Math Confirmed
+        diffuse_raw: Final[float] = self.sun_vector_l * normal_vector_n  # Math Confirmed
+        diffuse: Final = max(0, diffuse_raw)
         assert 0 <= diffuse <= 1, f"'{diffuse=}' should be 0..1 inclusive?"
 
         # Compute 0..1 for specular term
