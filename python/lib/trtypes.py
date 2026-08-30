@@ -192,7 +192,7 @@ class vec4(_VectorBase):
         return vec4(x=float(array[0]), y=float(array[1]), z=float(array[2]), w=float(array[3]))
 
     @staticmethod
-    def from_vec3(v: vec3, *, w: float) -> vec4:
+    def from_vec3(v: vec3, *, w: float = 1) -> vec4:
         assert isinstance(v, vec3)
         assert isinstance(w, (int, float))
         return vec4(x=v.x, y=v.y, z=v.z, w=float(w))

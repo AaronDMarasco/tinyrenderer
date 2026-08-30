@@ -17,7 +17,7 @@ height: Final = 800
 eye: Final = vec3(-1, 0, 2)  # Camera position
 center: Final = vec3(0, 0, 0)  # Camera direction
 up: Final = vec3(0, 1, 0)  # Camera up vector
-sun: Final = vec3(0, 0, 1)  # Sun location
+sun: Final = vec3(1, 1, 1)  # Sun location
 
 
 class PhongShader(our_gl.IShader):
