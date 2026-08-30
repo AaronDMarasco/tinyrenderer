@@ -14,10 +14,14 @@ view_port: Matrix4f = empty_matrix(4)
 perspective: Matrix4f = empty_matrix(4)
 z_buffer: ZBuffer = ZBuffer(width=1, height=1)
 
+# The fragment 'bar' parameter is the barycentric coordinates of {x,y,z} w.r.t the triangle
+# and NOT a "real" XYZ, but also represented as a 'vec3' in the C++, so instead in python they
+# they will just be list[float]
+
 
 class IShader(ABC):
     @abstractmethod
-    def fragment(self: Self, bar: vec3) -> tuple[bool, TGAColor_t]: ...
+    def fragment(self: Self, bar: list[float]) -> tuple[bool, TGAColor_t]: ...
 
 
 def lookat(eye: vec3, center: vec3, up: vec3) -> None:
@@ -114,13 +118,13 @@ def rasterize(
         for y in range(bb_min_y, bb_max_y + 1):
             ABC_invert_transpose = np.linalg.inv(ABC.T)
             # bc = barycentric coordinates of {x,y} w.r.t the triangle
-            bc: vec3 = vec3.from_np(ABC_invert_transpose @ vec3(x, y, 1))
-            if bc.x < 0 or bc.y < 0 or bc.z < 0:
+            bc = ABC_invert_transpose @ [x, y, 1]
+            if any(v < 0 for v in bc):
                 continue  # negative barycentric coordinate => the pixel is outside the triangle
-            z = bc * vec3(ndc[0].z, ndc[1].z, ndc[2].z)
+            z = bc @ [ndc[0].z, ndc[1].z, ndc[2].z]
             if z <= z_buffer.vals[x][y]:  # Behind what we've already drawn
                 continue
-            discard, color = shader.fragment(bc)
+            discard, color = shader.fragment(bc.tolist())
             if discard:
                 continue
             z_buffer.vals[x][y] = z

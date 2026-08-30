@@ -33,7 +33,7 @@ class RandomShader(our_gl.IShader):
         self.tri[vert] = gl_position.xyz  # in eye coordinates
         return vec4.from_np(our_gl.perspective @ gl_position.np)  # in clip coordinates
 
-    def fragment(self: Self, _bar: vec3) -> tuple[bool, TGAColor_t]:
+    def fragment(self: Self, _bar: list[float]) -> tuple[bool, TGAColor_t]:
         return (False, self.color)  # do not discard the pixel
 
 

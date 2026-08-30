@@ -59,7 +59,7 @@ class PhongShader(our_gl.IShader):
         self.tri[vert] = gl_position.xyz  # in eye coordinates
         return vec4.from_np(our_gl.perspective @ gl_position)  # in clip coordinates
 
-    def fragment(self: Self, _bar: vec3) -> tuple[bool, TGAColor_t]:
+    def fragment(self: Self, _bar: list[float]) -> tuple[bool, TGAColor_t]:
         # To get an orthogonal vector (normal) you need two vectors on the plane...
         this_plane_vectors: Final[tuple[vec3, vec3]] = (self.tri[1] - self.tri[0], self.tri[2] - self.tri[0])
         triangle_normal_vector_n: Final[vec3] = vec3.from_np(np.cross(*this_plane_vectors)).normalized
