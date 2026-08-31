@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Final, Self
 
 import lib.our_gl as our_gl
-from lib.objreader import OBJ_Data
+from lib.model import OBJ_Data
 from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
 from lib.trtypes import Triangle, vec3, vec4
 

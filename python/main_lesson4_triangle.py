@@ -6,7 +6,7 @@ from typing import Final
 
 import numpy as np
 
-from lib.objreader import OBJ_Data
+from lib.model import OBJ_Data
 from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
 
 

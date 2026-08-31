@@ -8,30 +8,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final, Self
 
-from .tgaimage import TGAColor, TGAColor_t
 from .trtypes import vec2
 from .trtypes import vec3 as OBJ_Vertex
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
-
-
-# Internal representation of an OBJ file... will be expanding as needed...
-@dataclass(frozen=True, kw_only=True, slots=True)
-class OBJ_Face_entry:
-    vertex: int
-    texture: int
-    normal: int
-
-
-@dataclass(frozen=True, slots=True)
-class OBJ_Face:
-    data: tuple[OBJ_Face_entry, OBJ_Face_entry, OBJ_Face_entry]
-    group: str | None = field(default=None, kw_only=True)
-    smooth: int | None = field(default=None, kw_only=True)
-
-    def __getitem__(self: Self, idx: int):
-        return self.data[idx]
 
 
 # NOTE: At this time, the 6-entry version of the vertex is unknown (but seems to be a default gray)
@@ -54,15 +35,32 @@ TEXTURE_V_RE_2: Final = re.compile(rf"^vt\s+(?P<x>{FLOATING_RE})\s+(?P<y>{FLOATI
 GROUP_RE: Final = re.compile(r"^g\s*(\w*)$")
 SMOOTH_RE: Final = re.compile(r"^s\s+(\d+|off)$")
 
-_red3: Final[TGAColor_t] = TGAColor(0, 0, 255)
-
 
 @dataclass(init=True, slots=True)
 class OBJ_Data:
+    @dataclass(frozen=True, kw_only=True, slots=True)
+    class FaceEntry:
+        """Single Entry for a Face"""
+
+        vertex: int
+        texture: int
+        normal: int
+
+    @dataclass(frozen=True, slots=True)
+    class Face:
+        """A Face"""
+
+        data: tuple[OBJ_Data.FaceEntry, OBJ_Data.FaceEntry, OBJ_Data.FaceEntry]
+        group: str | None = field(default=None, kw_only=True)
+        smooth: int | None = field(default=None, kw_only=True)
+
+        def __getitem__(self: Self, idx: int) -> OBJ_Data.FaceEntry:
+            return self.data[idx]
+
     comments: list[str] = field(init=False, default_factory=list)
-    faces: list[OBJ_Face] = field(init=False, default_factory=list)
-    texture_vs: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
+    faces: list[OBJ_Data.Face] = field(init=False, default_factory=list)
     # Insert a dummy vertex point to make everything 1-based to match face's vertex index:
+    texture_vs: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
     vertices: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
     v_normals: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
     # unknowns: list[str] = field(init=False, default_factory=list)
@@ -76,7 +74,7 @@ class OBJ_Data:
         for c in comment[1:].lstrip().split(","):  # Some are doubled up; remove # and split on ,
             self.comments.append(c.strip())
 
-    def add_face(self: Self, face: OBJ_Face) -> None:
+    def add_face(self: Self, face: Face) -> None:
         self.faces.append(face)
 
     def add_texture_v(self: Self, vertex: OBJ_Vertex) -> None:
@@ -161,16 +159,16 @@ class OBJ_Data:
                     case _ if m := SMOOTH_RE.match(line):
                         current_smooth = None if m[1] == "off" else int(m[1])
                     case _ if m := FACE_RE.match(line):
-                        f0 = OBJ_Face_entry(
+                        f0 = OBJ_Data.FaceEntry(
                             vertex=int(m["vertex_0"]), texture=int(m["texture_0"]), normal=int(m["normal_0"])
                         )
-                        f1 = OBJ_Face_entry(
+                        f1 = OBJ_Data.FaceEntry(
                             vertex=int(m["vertex_1"]), texture=int(m["texture_1"]), normal=int(m["normal_1"])
                         )
-                        f2 = OBJ_Face_entry(
+                        f2 = OBJ_Data.FaceEntry(
                             vertex=int(m["vertex_2"]), texture=int(m["texture_2"]), normal=int(m["normal_2"])
                         )
-                        res.add_face(OBJ_Face((f0, f1, f2), group=current_group, smooth=current_smooth))
+                        res.add_face(OBJ_Data.Face((f0, f1, f2), group=current_group, smooth=current_smooth))
                     case _ if m := TEXTURE_V_RE.match(line):
                         res.add_texture_v(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
                     case _ if m := TEXTURE_V_RE_2.match(line):

@@ -7,7 +7,7 @@ from typing import Final
 
 import numpy as np
 
-from lib.objreader import OBJ_Data
+from lib.model import OBJ_Data
 from lib.tgaimage import TGAColor_t, TGAImage
 from lib.trtypes import vec3
 from main_lesson4_triangle import triangle_barycentric_lesson_4

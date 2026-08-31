@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from typing import Final
 
-from lib.objreader import OBJ_Data
+from lib.model import OBJ_Data
 from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
 
 red: Final = TGAColor(0, 0, 255, 255).resize(bpp=3)

@@ -7,7 +7,7 @@ from typing import Final
 
 import numpy as np
 
-from lib.objreader import OBJ_Data
+from lib.model import OBJ_Data
 from lib.tgaimage import TGAColor_t, TGAImage
 from lib.trtypes import Matrix3f, Matrix4f, ZBuffer, vec2, vec3, vec4
 

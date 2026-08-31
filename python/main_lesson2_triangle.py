@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Final
 
 from lesson_2_triangles import triangle
-from lib.objreader import OBJ_Data
+from lib.model import OBJ_Data
 from lib.tgaimage import TGAColor_t, TGAImage, uint8_t
 
-# logging.getLogger('lib.objreader').setLevel(logging.INFO)
+# logging.getLogger('lib.model').setLevel(logging.INFO)
 
 
 def main() -> int:
