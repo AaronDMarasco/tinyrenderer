@@ -135,7 +135,8 @@ class TGAColor_t:
     def __eq__(self: Self, other: Any) -> bool:
         if not isinstance(other, TGAColor_t):
             return NotImplemented
-        return hash(self) == hash(other)
+        # This is almost 7X faster than hashing each and comparing
+        return self._data == other._data
 
     def __hash__(self: Self) -> int:
         return hash(self._data)
@@ -301,6 +302,7 @@ class TGAImage:
             raise ValueError(err_msg)
 
     def write_tga_file(self: Self, filename: str | Path, vflip: bool = True, rle: bool = True) -> None:
+        # logger.debug("Writing to file %s...", filename)
         self.verify()
         developer_area_ref: Final[bytes] = b"\0\0\0\0"
         extension_area_ref: Final[bytes] = b"\0\0\0\0"
@@ -360,38 +362,67 @@ class TGAImage:
                     # RLE - insert N copies of a single pixel into output
                     chunk_header -= 127
                     chunk_end = int(self.bpp)
-                    raw_data.writelines(in_[current_byte : current_byte + chunk_end] for _ in range(chunk_header))
+                    for _ in range(chunk_header):
+                        raw_data.write(in_[current_byte : current_byte + chunk_end])
                 current_pixel += chunk_header
                 current_byte += chunk_end
             return raw_data.getvalue()
 
     def unload_rle_data(self: Self) -> bytes:
-        """Weirdly named; actually does the RLE encoding"""
-        MAX_CHUNK: Final[int] = 128
-        pixel_count: Final[int] = self.width * self.height
-        current_pixel: int = 0
+        """
+        Weirdly named; actually does the RLE encoding
+
+        Takes advantage of numpy parallelization my having it do the heavy lifting and then
+        encode it as TGA requires
+        """
         flat_data: Final = self.npdata.ravel()
+
+        # Find positions of changes
+        changes: Final = flat_data[1:] != flat_data[:-1]
+
+        # Get the indices of these changes and end-of-data index
+        idx: Final = np.append(np.nonzero(changes)[0], len(flat_data) - 1)
+
+        # Calculate run lengths by getting the difference between change indices
+        run_lengths: Final = np.diff(np.append(-1, idx))
+        # Finally use idx as a mask to get the values we need to use
+        unique_values: Final = flat_data[idx]
+
         with BytesIO() as res:
-            while current_pixel < pixel_count:
-                run_length = 1
-                raw = True
-                while (current_pixel + run_length) < pixel_count and (run_length < MAX_CHUNK):
-                    succ_eq = flat_data[current_pixel + run_length - 1] == flat_data[current_pixel + run_length]
-                    if run_length == 1:  # First pass determines if chunk is raw or not
-                        raw = not succ_eq
-                    if raw and succ_eq:  # We're done doing a raw chunk
-                        run_length -= 1
-                        break
-                    if not raw and not succ_eq:  # We're done doing an RLE chunk
-                        break
-                    run_length += 1
-                flag = (run_length - 1) if raw else (run_length + 127)
-                res.write(flag.to_bytes(1))
-                if raw:
-                    res.writelines(bytes(c) for c in flat_data[current_pixel : current_pixel + run_length])
-                else:
-                    res.write(bytes(flat_data[current_pixel]))
-                current_pixel += run_length
+            raw_index: int | None = None  # First raw byte seen (if we're in a run)
+            # We can't do a more pythonic "for count, pixel in zip(run_lengths, unique_values, strict=True)"
+            # because we need to "look around" too much
+            for i in range(len(run_lengths)):
+                last_byte: bool = i == (len(run_lengths) - 1)
+                if (count := run_lengths[i]) == 1:
+                    if raw_index is None:
+                        raw_index = i
+                    if last_byte:
+                        logger.debug("Ending on a raw run...")
+                        count = 0  # There is now no non-raw block to write after
+                    else:
+                        continue
+                # Need to check if we just finished a raw run and if so, dump one or more raw segments
+                if raw_index is not None:
+                    raw_count = i - raw_index
+                    if count == 0:  # Ending on raw, so special case +1
+                        raw_count += 1
+                    while raw_count:
+                        size = min(raw_count, 128)  # Max chunk size is 128
+                        flag = size - 1
+                        res.write(flag.to_bytes(1))
+                        for chunk in map(bytes, unique_values[raw_index : raw_index + size]):
+                            res.write(chunk)
+                        raw_index += size
+                        raw_count -= size
+                    raw_index = None
+                # Need to write out one or more RLE (non-raw) blocks
+                while count:
+                    size = min(int(count), 128)  # Max chunk size is 128, count was numpy native until now
+                    flag = size + 127  # +128 to set high bit, -1 for TGA spec
+                    res.write(flag.to_bytes(1))
+                    res.write(bytes(unique_values[i]))
+                    count -= size
             return res.getvalue()
 
     def __str__(self: Self) -> str:
