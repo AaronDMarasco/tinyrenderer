@@ -221,18 +221,18 @@ class TestTGAColor:
         assert TGAColor(1) >= TGAColor()
 
     @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
-    @given(bgra_in=st.lists(valid_uint8_t, min_size=10, max_size=10))
+    @given(bgra_in=st.lists(valid_uint8_t, min_size=8, max_size=8))
     def test_sorting_hypothesis_le(self: Self, bgra_in: list[int], bpp: int) -> None:
-        b1, b2, g1, g2, r1, r2, b1, b2, a1, a2 = sorted(bgra_in)
+        b1, b2, g1, g2, r1, r2, a1, a2 = sorted(bgra_in)
         uut = TGAColor(b1, g1, r1, a1, bpp=bpp)
         uut2 = TGAColor(b2, g2, r2, a2, bpp=bpp)
         assert uut <= uut2
         assert not (uut > uut2)
 
     @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
-    @given(bgra_in=st.lists(valid_uint8_t, min_size=10, max_size=10, unique=True))
+    @given(bgra_in=st.lists(valid_uint8_t, min_size=8, max_size=8, unique=True))
     def test_sorting_hypothesis_lt(self: Self, bgra_in: list[int], bpp: int) -> None:
-        b1, b2, g1, g2, r1, r2, b1, b2, a1, a2 = sorted(bgra_in)
+        b1, b2, g1, g2, r1, r2, a1, a2 = sorted(bgra_in)
         uut = TGAColor(b1, g1, r1, a1, bpp=bpp)
         uut2 = TGAColor(b2, g2, r2, a2, bpp=bpp)
         assert uut < uut2
@@ -256,6 +256,27 @@ class TestTGAColor:
             assert repr(TGAColor(1, 2, 3)) == "TGAColor_t(b=1, g=2, r=3, bpp=3)"
             assert repr(TGAColor(1, 2)) == "TGAColor_t(b=1, g=2, bpp=2)"
             assert repr(TGAColor(1)) == "TGAColor_t(b=1, bpp=1)"
+
+    @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
+    @given(bgra_in=st.lists(valid_uint8_t, min_size=4, max_size=4, unique=True))
+    def test_shortcuts(self: Self, bgra_in: list[int], bpp: int) -> None:
+        uut = TGAColor(*bgra_in, bpp=bpp)
+        assert uut.b == bgra_in[0]
+        if bpp >= 2:
+            assert uut.g == bgra_in[1]
+        else:
+            with pytest.raises(ValueError):
+                _ = uut.g
+        if bpp >= 3:
+            assert uut.r == bgra_in[2]
+        else:
+            with pytest.raises(ValueError):
+                _ = uut.r
+        if bpp >= 4:
+            assert uut.a == bgra_in[3]
+        else:
+            with pytest.raises(ValueError):
+                _ = uut.a
 
 
 @st.composite

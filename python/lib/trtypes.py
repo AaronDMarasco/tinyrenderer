@@ -76,6 +76,8 @@ class _VectorBase(ABC):
     def normalized(self: Self) -> Self:
         denom: Final = numpy.linalg.norm(self.np)
         if denom == 0:
+            if all(x == 0 for x in self.array):
+                return self
             raise ZeroDivisionError
         return cast(Self, self.from_np(self.np / denom))
 
@@ -165,6 +167,10 @@ class vec3(_VectorBase):
         assert array.dtype == float, f"Invalid array type {array.dtype}!"
         return vec3(x=float(array[0]), y=float(array[1]), z=float(array[2]))
 
+    @property
+    def xy(self: Self) -> vec2:
+        return vec2(x=self.x, y=self.y)
+
     def __add__(self: Self, other: _VectorBase) -> vec3:
         if not isinstance(other, vec3):
             return NotImplemented
@@ -177,8 +183,7 @@ class vec3(_VectorBase):
 
 
 @dataclass(frozen=True, slots=True)
-class vec4(_VectorBase):
-    z: float
+class vec4(vec3):
     w: float
 
     @property
@@ -197,10 +202,6 @@ class vec4(_VectorBase):
         assert isinstance(v, vec3)
         assert isinstance(w, (int, float))
         return vec4(x=v.x, y=v.y, z=v.z, w=float(w))
-
-    @property
-    def xy(self: Self) -> vec2:
-        return vec2(x=self.x, y=self.y)
 
     @property
     def xyz(self: Self) -> vec3:

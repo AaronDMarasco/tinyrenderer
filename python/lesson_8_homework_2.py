@@ -7,7 +7,7 @@ from typing import Final, Self
 import lib.our_gl as our_gl
 from lib.objreader import OBJ_Data
 from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
-from lib.trtypes import Triangle, vec3, vec4
+from lib.trtypes import Triangle, vec2, vec3, vec4
 
 width: Final = 800
 height: Final = 800
@@ -18,11 +18,12 @@ up: Final = vec3(0, 1, 0)  # Camera up vector
 sun: Final = vec3(1, 1, 1)  # Sun location
 
 
-class PhongShader(our_gl.IShader):
+class PhongNormalMappingShader(our_gl.IShader):
     model: OBJ_Data
+    model_nm: TGAImage
     color: TGAColor_t
     tri: list[vec3]  # Triangle in eye coordinates
-    vns: list[vec3]  # Vector Normal for each vertex of triangle
+    vts: list[vec2]  # Vector texture U, V
     # These are for reflection stuff:
     sun_vector_l: vec3  # light direction in eye coordinates
     ambient: float
@@ -33,6 +34,7 @@ class PhongShader(our_gl.IShader):
         self: Self,
         model: OBJ_Data,
         *,
+        model_nm: TGAImage,
         sun: vec3,
         ambient: float = 0.4,
         diffuse_weight: float = 1,
@@ -44,9 +46,11 @@ class PhongShader(our_gl.IShader):
         assert 0 <= specular_weight <= 1, "Specular term weight should be 0..1 inclusive"
 
         self.model = model
+        self.model_nm = model_nm
+        self.model_nm.flip_vertically()  # We want it 0,0 = bottom left
         self.color = TGAColor()
         self.tri = [vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0)]
-        self.vns = [vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0)]
+        self.vts = [vec2(x=0, y=0), vec2(x=0, y=0), vec2(x=0, y=0)]
         self.sun_vector_l = vec4.from_np(our_gl.model_view @ vec4.from_vec3(sun, w=0)).normalized.xyz
         self.ambient = ambient
         self.diffuse_weight = diffuse_weight
@@ -55,19 +59,24 @@ class PhongShader(our_gl.IShader):
 
     def vertex(self: Self, face: int, vert: int) -> vec4:
         v: Final[vec3] = self.model.vert(face, vert)  # current vertex in object coordinates
-        vn: Final[vec3] = self.model.normal(face, vert)  # current normal vertex in object coordinates
-        # This is explained in the "caveat" section of lesson 8:
-        # MV_invert_transpose: Final = np.linalg.inv(our_gl.model_view.T)
-        # gl_position_vn: Final[vec4] = vec4.from_np(MV_invert_transpose @ vec4.from_vec3(vn, w=0))
-        self.vns[vert] = vec4.from_np(our_gl.model_view_IT @ vec4.from_vec3(vn, w=0)).xyz  # in eye coordinates
+        self.vts[vert] = self.model.vert_texture(face, vert)  # current texture U,V (as X,Y)
         gl_position: Final[vec4] = vec4.from_np(our_gl.model_view @ vec4.from_vec3(v, w=1))
         self.tri[vert] = gl_position.xyz  # in eye coordinates
         return vec4.from_np(our_gl.perspective @ gl_position)  # in clip coordinates
 
     def fragment(self: Self, bar: list[float]) -> tuple[bool, TGAColor_t]:
         assert len(bar) == 3, f"Invalid {bar=}"
-        # In Lesson 7, we computed a normal to the entire triangle. Now we use provided ones (self.vns)
-        normal_vector_n: Final[vec3] = (self.vns[0] * bar[0] + self.vns[1] * bar[1] + self.vns[2] * bar[2]).normalized
+        # For homework 2, we'll read the model_nm instead of the vn from the model
+        color_sample_vec2: Final[vec2] = self.vts[0] * bar[0] + self.vts[1] * bar[1] + self.vts[2] * bar[2]
+
+        # NOTE: The values in self.vt are 0..1 so multiply by size of image
+        color_sample_uv: Final[vec2] = vec2(
+            x=self.model_nm.width * color_sample_vec2.x,
+            y=self.model_nm.height * color_sample_vec2.y,
+        )
+        # Sample the color at U,V and then map it to 0..1
+        nm_color: Final[TGAColor_t] = self.model_nm.get(round(color_sample_uv.x), round(color_sample_uv.y))
+        normal_vector_n: Final[vec3] = vec3(x=nm_color.r / 255, y=nm_color.g / 255, z=nm_color.b / 255).normalized
 
         # Compute 0..1 for diffuse term
         diffuse_raw: Final[float] = self.sun_vector_l * normal_vector_n  # Math Confirmed
@@ -96,17 +105,9 @@ class PhongShader(our_gl.IShader):
 def main() -> int:
 
     find_output = """
-../obj/boggie/head.obj
-../obj/boggie/body.obj
-../obj/boggie/eyes.obj
 ../obj/african_head/african_head.obj
 ../obj/african_head/african_head_eye_inner.obj
 ../obj/african_head/african_head_eye_outer.obj
-../obj/floor.obj
-../obj/diablo3_pose/diablo3_pose.obj
-"""
-    find_output = """
-../obj/african_head/african_head.obj
 ../obj/diablo3_pose/diablo3_pose.obj
 """
     our_gl.lookat(eye, center, up)  # build global model_view
@@ -119,7 +120,8 @@ def main() -> int:
             framebuffer = TGAImage(width, height, TGAImage.Format.GRAYSCALE, TGAColor(255 // 2))
             our_gl.init_zbuffer(width, height)  # New zbuffer per image
             model = OBJ_Data.from_file(fname)
-            shader = PhongShader(model, sun=sun, specular_shine=35)
+            model_nm = TGAImage.read_tga_file(f"{fname[:-4]}_nm.tga")
+            shader = PhongNormalMappingShader(model, model_nm=model_nm, sun=sun, specular_shine=35)
             for face in range(len(model.faces)):
                 clip: Triangle = (  # assemble the primitive
                     shader.vertex(face, 0),

@@ -81,6 +81,31 @@ class TGAColor_t:
     def bytespp(self: Self) -> int:
         return len(self._data)
 
+    @property
+    def b(self: Self) -> int:
+        return self._data[0]
+
+    @property
+    def g(self: Self) -> int:
+        if self.bytespp >= 2:
+            return self._data[1]
+        err_msg = f"Asked for g (byte 2) when bytespp={self.bytespp}!"
+        raise ValueError(err_msg)
+
+    @property
+    def r(self: Self) -> int:
+        if self.bytespp >= 3:
+            return self._data[2]
+        err_msg = f"Asked for r (byte 3) when bytespp={self.bytespp}!"
+        raise ValueError(err_msg)
+
+    @property
+    def a(self: Self) -> int:
+        if self.bytespp >= 4:
+            return self._data[3]
+        err_msg = f"Asked for a (byte 4) when bytespp={self.bytespp}!"
+        raise ValueError(err_msg)
+
     @staticmethod
     def random(bpp: uint8_t | None = None) -> TGAColor_t:
         if bpp is None:
@@ -345,7 +370,7 @@ class TGAImage:
         MAX_CHUNK: Final[int] = 128
         pixel_count: Final[int] = self.width * self.height
         current_pixel: int = 0
-        flat_data: Final = self.npdata.flat
+        flat_data: Final = self.npdata.ravel()
         with BytesIO() as res:
             while current_pixel < pixel_count:
                 run_length = 1

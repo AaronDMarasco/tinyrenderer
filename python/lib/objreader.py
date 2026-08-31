@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Final, Self
 
 from .tgaimage import TGAColor, TGAColor_t
+from .trtypes import vec2
 from .trtypes import vec3 as OBJ_Vertex
 
 logger = logging.getLogger(__name__)
@@ -131,6 +132,11 @@ class OBJ_Data:
         face: Final = self.faces[iface]
         vertex: Final = face[nthvert].vertex
         return self.vertices[vertex]
+
+    def vert_texture(self: Self, iface: int, nthvert: int) -> vec2:
+        face: Final = self.faces[iface]
+        vertex: Final = face[nthvert].texture
+        return self.texture_vs[vertex].xy
 
     @staticmethod
     def from_file(infile: str | Path) -> OBJ_Data:
