@@ -103,10 +103,6 @@ def main() -> int:
 ../obj/floor.obj
 ../obj/diablo3_pose/diablo3_pose.obj
 """
-    find_output = """
-../obj/african_head/african_head.obj
-../obj/diablo3_pose/diablo3_pose.obj
-"""
     our_gl.lookat(eye, center, up)  # build global model_view
     our_gl.init_perspective((eye - center).norm)  # build global persepctive
     our_gl.init_viewport(width // 16, height // 16, width * 7 // 8, height * 7 // 8)  # build global view_port
