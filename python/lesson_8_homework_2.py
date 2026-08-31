@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 from typing import Final, Self
@@ -17,15 +18,17 @@ center: Final = vec3(0, 0, 0)  # Camera direction
 up: Final = vec3(0, 1, 0)  # Camera up vector
 sun: Final = vec3(1, 1, 1)  # Sun location
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+
 
 class PhongNormalMappingShader(our_gl.IShader):
     model: OBJ_Data
     model_nm: TGAImage
     color: TGAColor_t
-    tri: list[vec3]  # Triangle in eye coordinates
     vts: list[vec2]  # Vector texture U, V
     # These are for reflection stuff:
-    sun_vector_l: vec3  # light direction in eye coordinates
+    sun_vector_l: vec4  # light direction in eye coordinates
     ambient: float
     diffuse_weight: float
     specular_shine: int
@@ -49,9 +52,8 @@ class PhongNormalMappingShader(our_gl.IShader):
         self.model_nm = model_nm
         self.model_nm.flip_vertically()  # We want it 0,0 = bottom left
         self.color = TGAColor()
-        self.tri = [vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0)]
         self.vts = [vec2(x=0, y=0), vec2(x=0, y=0), vec2(x=0, y=0)]
-        self.sun_vector_l = vec4.from_np(our_gl.model_view @ vec4.from_vec3(sun, w=0)).normalized.xyz
+        self.sun_vector_l = vec4.from_np(our_gl.model_view @ vec4.from_vec3(sun, w=0)).normalized
         self.ambient = ambient
         self.diffuse_weight = diffuse_weight
         self.specular_weight = specular_weight
@@ -59,27 +61,26 @@ class PhongNormalMappingShader(our_gl.IShader):
 
     def vertex(self: Self, face: int, vert: int) -> vec4:
         v: Final[vec3] = self.model.vert(face, vert)  # current vertex in object coordinates
-        self.vts[vert] = self.model.vert_texture(face, vert)  # current texture U,V (as X,Y)
         gl_position: Final[vec4] = vec4.from_np(our_gl.model_view @ vec4.from_vec3(v, w=1))
-        self.tri[vert] = gl_position.xyz  # in eye coordinates
+        self.vts[vert] = self.model.vert_texture(face, vert)  # current texture U,V (as X,Y)
         return vec4.from_np(our_gl.perspective @ gl_position)  # in clip coordinates
 
     def fragment(self: Self, bar: list[float]) -> tuple[bool, TGAColor_t]:
         assert len(bar) == 3, f"Invalid {bar=}"
         # For homework 2, we'll read the model_nm instead of the vn from the model
-        color_sample_vec2: Final[vec2] = self.vts[0] * bar[0] + self.vts[1] * bar[1] + self.vts[2] * bar[2]
+        color_sample: Final[vec2] = self.vts[0] * bar[0] + self.vts[1] * bar[1] + self.vts[2] * bar[2]
 
         # NOTE: The values in self.vt are 0..1 so multiply by size of image
         color_sample_uv: Final[vec2] = vec2(
-            x=self.model_nm.width * color_sample_vec2.x,
-            y=self.model_nm.height * color_sample_vec2.y,
+            x=self.model_nm.width * color_sample.x,
+            y=self.model_nm.height * color_sample.y,
         )
         # Sample the color at U,V and then map it to 0..1
         nm_color: Final[TGAColor_t] = self.model_nm.get(round(color_sample_uv.x), round(color_sample_uv.y))
         normal_vector_n: Final[vec3] = vec3(x=nm_color.r / 255, y=nm_color.g / 255, z=nm_color.b / 255).normalized
 
         # Compute 0..1 for diffuse term
-        diffuse_raw: Final[float] = self.sun_vector_l * normal_vector_n  # Math Confirmed
+        diffuse_raw: Final[float] = self.sun_vector_l.xyz * normal_vector_n
         diffuse: Final = max(0, diffuse_raw)
         assert 0 <= diffuse <= 1, f"'{diffuse=}' should be 0..1 inclusive?"
 
@@ -117,11 +118,13 @@ def main() -> int:
     for fname in find_output.split():
         basename = Path(fname).name[:-4]
         try:
-            framebuffer = TGAImage(width, height, TGAImage.Format.GRAYSCALE, TGAColor(255 // 2))
+            logger.debug("Processing %s...", basename)
+            framebuffer = TGAImage(w=width, h=height, bpp=TGAImage.Format.GRAYSCALE, c=TGAColor(255 // 2))
             our_gl.init_zbuffer(width, height)  # New zbuffer per image
             model = OBJ_Data.from_file(fname)
             model_nm = TGAImage.read_tga_file(f"{fname[:-4]}_nm.tga")
             shader = PhongNormalMappingShader(model, model_nm=model_nm, sun=sun, specular_shine=35)
+            logger.debug("Rendering %d faces...", len(model.faces))
             for face in range(len(model.faces)):
                 clip: Triangle = (  # assemble the primitive
                     shader.vertex(face, 0),
