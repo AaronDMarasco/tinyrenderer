@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Callable, Generator
+from functools import cache
 from pathlib import Path
 from typing import Final, NamedTuple, Self
 
@@ -15,6 +16,12 @@ from hypothesis import strategies as st
 from ..tgaimage import TGAColor, TGAColor_t, TGAImage, uint8_t
 
 valid_uint8_t = st.integers(0, 255)
+
+
+@cache
+def _read_tga_file(tfile: str | Path) -> TGAImage:
+    """Helper to cache the files - full test 44s => 28s"""
+    return TGAImage.read_tga_file(tfile)
 
 
 class GoldenFile(NamedTuple):
@@ -33,6 +40,14 @@ class GoldenFile(NamedTuple):
 
 TEST_FILES: Final[tuple[GoldenFile, ...]] = (
     GoldenFile(
+        Path(Path(__file__).parent / "../.." / "../obj/floor_spec.tga").resolve(),
+        "RGB",
+        RLE=True,
+        colors=1,
+        height=1,
+        width=1,
+    ),
+    GoldenFile(
         Path("~/.steam/debian-installation/public/c1.tga").expanduser().resolve(),
         "RGB",
         RLE=False,
@@ -49,14 +64,6 @@ TEST_FILES: Final[tuple[GoldenFile, ...]] = (
         colors=27,
         height=17,
         width=17,
-    ),
-    GoldenFile(
-        Path(Path(__file__).parent / "../.." / "../obj/floor_spec.tga").resolve(),
-        "RGB",
-        RLE=True,
-        colors=1,
-        height=1,
-        width=1,
     ),
     GoldenFile(
         Path(Path(__file__).parent / "../.." / "../obj/boggie/body_spec.tga").resolve(),
@@ -357,7 +364,7 @@ class TestTGAImage:
     @pytest.mark.skipif(bool(os.getenv("QUICK_CHECK")), reason="QUICK_CHECK")
     def test_good_files(self: Self, file_suite: GoldenFile) -> None:
         TestTGAImage.skip_missing(file_suite.path)
-        uut = TGAImage.read_tga_file(file_suite.path)
+        uut = _read_tga_file(file_suite.path)
         self.check_image(uut, file_suite)
 
     def test_gradient_fill(self: Self) -> None:
@@ -388,15 +395,28 @@ class TestTGAImage:
     def test_rle_unrle(self: Self, subtests: pytest.Subtests, file_suite: GoldenFile) -> None:
         # Sometimes the raw RLE didn't match, but the re-expanded matches...
         TestTGAImage.skip_missing(file_suite.path)
-        # Un-RLE the data...
-        uut = TGAImage.read_tga_file(file_suite.path)
-        # Get the original data back out
-        golden_data = uut._raw_payload
-        # Re-RLE the data...
-        re_compressed = uut.unload_rle_data()
-        # Expand that
-        test_data = uut.load_rle_data(re_compressed)
-        assert test_data == golden_data
+        with subtests.test("Reading"):
+            # Un-RLE the data...
+            uut = _read_tga_file(file_suite.path)
+        with subtests.test("Extracting"):
+            # Get the original data back out
+            golden_data = uut._raw_payload
+        with subtests.test("Recompressing"):
+            # Re-RLE the data...
+            re_compressed = uut.unload_rle_data()
+        with subtests.test("Re-expanding"):
+            # Expand that
+            test_data = uut.load_rle_data(re_compressed)
+        with subtests.test("Comparing"):
+            # These are broken out to stop pytest from being "helpful" and dumping all the data to the screen...
+            len_test = len(test_data)
+            len_golden = len(golden_data)
+            assert len_test == len_golden
+            CHUNK_SIZE = 32
+            for chunk in range(0, len(golden_data), CHUNK_SIZE):
+                # The first half is to let you see where the difference is in absolute terms
+                abs_loc = chunk * CHUNK_SIZE
+                assert abs_loc >= 0 and golden_data[chunk : chunk + CHUNK_SIZE] == test_data[chunk : chunk + CHUNK_SIZE]
 
     @given(h_y=limited_xy(), w_x=limited_xy())
     def test_set_get(self: Self, h_y: tuple[int, int], w_x: tuple[int, int]) -> None:
@@ -432,7 +452,7 @@ class TestTGAImage:
         tmpdir = tmp_path_factory.mktemp("test_write_file")
         ofile = f"{file_suite.path.stem}{'_flip' if vflip else ''}{'_rle' if rle else ''}.tga"
 
-        writer = TGAImage.read_tga_file(file_suite.path)
+        writer = _read_tga_file(file_suite.path)
         writer.write_tga_file(tmpdir / ofile, vflip=vflip, rle=rle)
 
         uut = TGAImage.read_tga_file(tmpdir / ofile)
