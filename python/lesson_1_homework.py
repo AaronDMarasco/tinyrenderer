@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from typing import Final
 
-from lib.model import OBJ_Data
+from lib.model import Model
 from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
 
 red: Final = TGAColor(0, 0, 255, 255).resize(bpp=3)
@@ -42,7 +42,7 @@ def main() -> int:
 
     framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
 
-    obj_data = OBJ_Data.from_file("../obj/diablo3_pose/diablo3_pose.obj")
+    obj_data = Model.from_file("../obj/diablo3_pose/diablo3_pose.obj")
 
     for face in obj_data.faces:
         # Get the indices of the vertices

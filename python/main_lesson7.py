@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Final, Self
 
 import lib.our_gl as our_gl
-from lib.model import OBJ_Data
+from lib.model import Model
 from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
 from lib.trtypes import Triangle, vec3, vec4
 
@@ -18,11 +18,11 @@ up: Final = vec3(0, 1, 0)  # Camera up vector
 
 
 class RandomShader(our_gl.IShader):
-    model: OBJ_Data
+    model: Model
     color: TGAColor_t
     tri: list[vec3]  # Triangle in eye coordinates
 
-    def __init__(self: Self, model: OBJ_Data) -> None:
+    def __init__(self: Self, model: Model) -> None:
         self.model = model
         self.color = TGAColor()
         self.tri = [vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0)]
@@ -58,7 +58,7 @@ def main() -> int:
         try:
             framebuffer = TGAImage(width, height, TGAImage.Format.RGB, TGAColor(177, 195, 209))
             our_gl.init_zbuffer(width, height)  # New zbuffer per image
-            model = OBJ_Data.from_file(fname)
+            model = Model.from_file(fname)
             shader = RandomShader(model)
             for face in range(len(model.faces)):
                 shader.color = TGAColor_t.random()

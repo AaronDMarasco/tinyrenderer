@@ -7,7 +7,7 @@ from typing import Final
 
 import numpy as np
 
-from lib.model import OBJ_Data
+from lib.model import Model
 from lib.tgaimage import TGAColor_t, TGAImage
 from lib.trtypes import vec3
 from main_lesson4_triangle import triangle_barycentric_lesson_4
@@ -58,7 +58,7 @@ def main() -> int:
         try:
             framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
             z_buffer = TGAImage(width, height, TGAImage.Format.GRAYSCALE)
-            obj_data = OBJ_Data.from_file(fname)
+            obj_data = Model.from_file(fname)
             for face in obj_data.faces:
                 idx = (face[0].vertex, face[1].vertex, face[2].vertex)
                 a = project(rot(obj_data.vertices[idx[0]]))

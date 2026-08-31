@@ -37,7 +37,7 @@ SMOOTH_RE: Final = re.compile(r"^s\s+(\d+|off)$")
 
 
 @dataclass(init=True, slots=True)
-class OBJ_Data:
+class Model:
     @dataclass(frozen=True, kw_only=True, slots=True)
     class FaceEntry:
         """Single Entry for a Face"""
@@ -50,15 +50,15 @@ class OBJ_Data:
     class Face:
         """A Face"""
 
-        data: tuple[OBJ_Data.FaceEntry, OBJ_Data.FaceEntry, OBJ_Data.FaceEntry]
+        data: tuple[Model.FaceEntry, Model.FaceEntry, Model.FaceEntry]
         group: str | None = field(default=None, kw_only=True)
         smooth: int | None = field(default=None, kw_only=True)
 
-        def __getitem__(self: Self, idx: int) -> OBJ_Data.FaceEntry:
+        def __getitem__(self: Self, idx: int) -> Model.FaceEntry:
             return self.data[idx]
 
     comments: list[str] = field(init=False, default_factory=list)
-    faces: list[OBJ_Data.Face] = field(init=False, default_factory=list)
+    faces: list[Model.Face] = field(init=False, default_factory=list)
     # Insert a dummy vertex point to make everything 1-based to match face's vertex index:
     texture_vs: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
     vertices: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
@@ -137,8 +137,8 @@ class OBJ_Data:
         return self.texture_vs[vertex].xy
 
     @staticmethod
-    def from_file(infile: str | Path) -> OBJ_Data:
-        res = OBJ_Data()
+    def from_file(infile: str | Path) -> Model:
+        res = Model()
         current_group = None
         current_smooth = None
         with open(infile, encoding="utf-8") as ifile:
@@ -159,16 +159,16 @@ class OBJ_Data:
                     case _ if m := SMOOTH_RE.match(line):
                         current_smooth = None if m[1] == "off" else int(m[1])
                     case _ if m := FACE_RE.match(line):
-                        f0 = OBJ_Data.FaceEntry(
+                        f0 = Model.FaceEntry(
                             vertex=int(m["vertex_0"]), texture=int(m["texture_0"]), normal=int(m["normal_0"])
                         )
-                        f1 = OBJ_Data.FaceEntry(
+                        f1 = Model.FaceEntry(
                             vertex=int(m["vertex_1"]), texture=int(m["texture_1"]), normal=int(m["normal_1"])
                         )
-                        f2 = OBJ_Data.FaceEntry(
+                        f2 = Model.FaceEntry(
                             vertex=int(m["vertex_2"]), texture=int(m["texture_2"]), normal=int(m["normal_2"])
                         )
-                        res.add_face(OBJ_Data.Face((f0, f1, f2), group=current_group, smooth=current_smooth))
+                        res.add_face(Model.Face((f0, f1, f2), group=current_group, smooth=current_smooth))
                     case _ if m := TEXTURE_V_RE.match(line):
                         res.add_texture_v(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
                     case _ if m := TEXTURE_V_RE_2.match(line):
@@ -192,7 +192,7 @@ class OBJ_Data:
 
     def __str__(self: Self) -> str:
         return (
-            f"OBJ_Data({hex(id(self))}) with "
+            f"Model({hex(id(self))}) with "
             f"{len(self.faces)} face(s), "
             f"{len(self.vertices) - 1} vert(ex|ices), "
             f"{len(self.v_normals)} vertex normal(s), "

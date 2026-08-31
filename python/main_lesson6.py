@@ -7,7 +7,7 @@ from typing import Final
 
 import numpy as np
 
-from lib.model import OBJ_Data
+from lib.model import Model
 from lib.tgaimage import TGAColor_t, TGAImage
 from lib.trtypes import Matrix3f, Matrix4f, ZBuffer, vec2, vec3, vec4
 
@@ -140,7 +140,7 @@ def main() -> int:
         try:
             framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
             z_buffer = ZBuffer(width=width, height=height)
-            obj_data = OBJ_Data.from_file(fname)
+            obj_data = Model.from_file(fname)
             for face in obj_data.faces:
                 clip: list[vec4] = []
                 for entry in face.data:  # Assemble the primitive

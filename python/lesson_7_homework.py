@@ -7,7 +7,7 @@ from typing import Final, Self
 import numpy as np
 
 import lib.our_gl as our_gl
-from lib.model import OBJ_Data
+from lib.model import Model
 from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
 from lib.trtypes import Triangle, vec3, vec4
 
@@ -21,7 +21,7 @@ sun: Final = vec3(1, 1, 1)  # Sun location
 
 
 class PhongShader(our_gl.IShader):
-    model: OBJ_Data
+    model: Model
     color: TGAColor_t
     tri: list[vec3]  # Triangle in eye coordinates
     # These are for reflection stuff:
@@ -32,7 +32,7 @@ class PhongShader(our_gl.IShader):
 
     def __init__(
         self: Self,
-        model: OBJ_Data,
+        model: Model,
         *,
         sun: vec3,
         ambient: float = 0.5,
@@ -108,7 +108,7 @@ def main() -> int:
         try:
             framebuffer = TGAImage(width, height, TGAImage.Format.GRAYSCALE, TGAColor(255 // 2))
             our_gl.init_zbuffer(width, height)  # New zbuffer per image
-            model = OBJ_Data.from_file(fname)
+            model = Model.from_file(fname)
             shader = PhongShader(model, sun=sun, specular_shine=35)
             for face in range(len(model.faces)):
                 clip: Triangle = (  # assemble the primitive

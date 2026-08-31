@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Final
 
 from lesson_2_triangles import triangle
-from lib.model import OBJ_Data
+from lib.model import Model
 from lib.tgaimage import TGAColor_t, TGAImage, uint8_t
 
 # logging.getLogger('lib.model').setLevel(logging.INFO)
@@ -34,7 +34,7 @@ def main() -> int:
         basename = Path(fname).name[:-4]
         try:
             framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
-            obj_data = OBJ_Data.from_file(fname)
+            obj_data = Model.from_file(fname)
             for face in obj_data.faces:
                 idx = (face[0].vertex, face[1].vertex, face[2].vertex)
                 # Read those out

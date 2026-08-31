@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Final, Self
 
 import lib.our_gl as our_gl
-from lib.model import OBJ_Data
+from lib.model import Model
 from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
 from lib.trtypes import Triangle, vec2, vec3, vec4
 
@@ -23,7 +23,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 class PhongNormalMappingShader(our_gl.IShader):
-    model: OBJ_Data
+    model: Model
     model_nm: TGAImage
     color: TGAColor_t
     vts: list[vec2]  # Vector texture U, V
@@ -35,7 +35,7 @@ class PhongNormalMappingShader(our_gl.IShader):
 
     def __init__(
         self: Self,
-        model: OBJ_Data,
+        model: Model,
         *,
         model_nm: TGAImage,
         sun: vec3,
@@ -121,7 +121,7 @@ def main() -> int:
             logger.debug("Processing %s...", basename)
             framebuffer = TGAImage(w=width, h=height, bpp=TGAImage.Format.GRAYSCALE, c=TGAColor(255 // 2))
             our_gl.init_zbuffer(width, height)  # New zbuffer per image
-            model = OBJ_Data.from_file(fname)
+            model = Model.from_file(fname)
             model_nm = TGAImage.read_tga_file(f"{fname[:-4]}_nm.tga")
             shader = PhongNormalMappingShader(model, model_nm=model_nm, sun=sun, specular_shine=35)
             logger.debug("Rendering %d faces...", len(model.faces))

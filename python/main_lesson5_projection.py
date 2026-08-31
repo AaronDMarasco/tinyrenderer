@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 from math import cos, pi, sin
 from pathlib import Path
@@ -7,10 +8,12 @@ from typing import Final
 
 import numpy as np
 
-from lib.model import OBJ_Data
+from lib.model import Model
 from lib.tgaimage import TGAColor_t, TGAImage
 from lib.trtypes import vec3
 from main_lesson4_triangle import triangle_barycentric_lesson_4
+
+logging.getLogger("lib.tgaimage").setLevel(logging.INFO)
 
 width: Final = 800
 height: Final = 800
@@ -57,12 +60,13 @@ def main() -> int:
 ../obj/floor.obj
 ../obj/diablo3_pose/diablo3_pose.obj
 """
+
     for fname in find_output.split():
         basename = Path(fname).name[:-4]
         try:
             framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
             z_buffer = TGAImage(width, height, TGAImage.Format.GRAYSCALE)
-            obj_data = OBJ_Data.from_file(fname)
+            obj_data = Model.from_file(fname)
             for face in obj_data.faces:
                 idx = (face[0].vertex, face[1].vertex, face[2].vertex)
                 a = project(persp(rot(obj_data.vertices[idx[0]])))

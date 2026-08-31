@@ -7,7 +7,7 @@ from typing import Final
 
 import numpy as np
 
-from lib.model import OBJ_Data
+from lib.model import Model
 from lib.tgaimage import TGAColor_t, TGAImage
 from lib.trtypes import ZBuffer, vec3
 
@@ -100,7 +100,7 @@ def main() -> int:
         try:
             framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
             z_buffer = ZBuffer(width=width, height=height)
-            obj_data = OBJ_Data.from_file(fname)
+            obj_data = Model.from_file(fname)
             for face in obj_data.faces:
                 idx = (face[0].vertex, face[1].vertex, face[2].vertex)
                 a = project(persp(rot(obj_data.vertices[idx[0]])))
