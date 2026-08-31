@@ -140,11 +140,11 @@ def main() -> int:
         try:
             framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
             z_buffer = ZBuffer(width=width, height=height)
-            obj_data = Model.from_file(fname)
-            for face in obj_data.faces:
+            model = Model.from_file(fname)
+            for face in model.faces:
                 clip: list[vec4] = []
                 for entry in face.data:  # Assemble the primitive
-                    v = obj_data.vertices[entry.vertex]
+                    v = model.vertices[entry.vertex]
                     clip.append(vec4.from_np(persp_xform @ vec4.from_vec3(v, w=1).np))
                 rasterize_lesson_6(clip, viewport, z_buffer, framebuffer, TGAColor_t.random())
 

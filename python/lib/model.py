@@ -8,8 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final, Self
 
-from .trtypes import vec2
-from .trtypes import vec3 as OBJ_Vertex
+from .trtypes import vec2, vec3
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -60,9 +59,9 @@ class Model:
     comments: list[str] = field(init=False, default_factory=list)
     faces: list[Model.Face] = field(init=False, default_factory=list)
     # Insert a dummy vertex point to make everything 1-based to match face's vertex index:
-    texture_vs: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
-    vertices: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
-    v_normals: list[OBJ_Vertex] = field(init=False, default_factory=lambda: [OBJ_Vertex(0, 0, 0)])
+    texture_vs: list[vec3] = field(init=False, default_factory=lambda: [vec3(0, 0, 0)])
+    vertices: list[vec3] = field(init=False, default_factory=lambda: [vec3(0, 0, 0)])
+    v_normals: list[vec3] = field(init=False, default_factory=lambda: [vec3(0, 0, 0)])
     # unknowns: list[str] = field(init=False, default_factory=list)
 
     @property
@@ -77,16 +76,16 @@ class Model:
     def add_face(self: Self, face: Face) -> None:
         self.faces.append(face)
 
-    def add_texture_v(self: Self, vertex: OBJ_Vertex) -> None:
+    def add_texture_v(self: Self, vertex: vec3) -> None:
         self.texture_vs.append(vertex)
 
     # # def add_unknown(self: Self, string: str) -> None:
     # #     self.unknowns.append(string)
 
-    def add_vertex(self: Self, vertex: OBJ_Vertex) -> None:
+    def add_vertex(self: Self, vertex: vec3) -> None:
         self.vertices.append(vertex)
 
-    def add_v_normal(self: Self, vertex: OBJ_Vertex) -> None:
+    def add_v_normal(self: Self, vertex: vec3) -> None:
         self.v_normals.append(vertex)
 
     def verify(self: Self) -> None:
@@ -119,13 +118,13 @@ class Model:
                 case _:
                     logger.info("Could not parse comment: %s", comment)
 
-    def normal(self: Self, iface: int, nthvert: int) -> OBJ_Vertex:
+    def normal(self: Self, iface: int, nthvert: int) -> vec3:
         """Helper ported from C++"""
         face: Final = self.faces[iface]
         n_vertex: Final = face[nthvert].normal
         return self.v_normals[n_vertex]
 
-    def vert(self: Self, iface: int, nthvert: int) -> OBJ_Vertex:
+    def vert(self: Self, iface: int, nthvert: int) -> vec3:
         """Helper ported from C++"""
         face: Final = self.faces[iface]
         vertex: Final = face[nthvert].vertex
@@ -170,18 +169,18 @@ class Model:
                         )
                         res.add_face(Model.Face((f0, f1, f2), group=current_group, smooth=current_smooth))
                     case _ if m := TEXTURE_V_RE.match(line):
-                        res.add_texture_v(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
+                        res.add_texture_v(vec3(float(m["x"]), float(m["y"]), float(m["z"])))
                     case _ if m := TEXTURE_V_RE_2.match(line):
-                        res.add_texture_v(OBJ_Vertex(float(m["x"]), float(m["y"]), 0))
+                        res.add_texture_v(vec3(float(m["x"]), float(m["y"]), 0))
                     case _ if m := VERTEX_RE.match(line):
-                        res.add_vertex(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
+                        res.add_vertex(vec3(float(m["x"]), float(m["y"]), float(m["z"])))
                     case _ if m := VERTEX_RE_6.match(line):
                         if m["unk4"] == m["unk5"] == m["unk6"] == "0.752941":
-                            res.add_vertex(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
+                            res.add_vertex(vec3(float(m["x"]), float(m["y"]), float(m["z"])))
                         else:
                             logger.debug("Unknown 6-entry vertex where unknown values didn't match: %s", line.rstrip())
                     case _ if m := V_NORMAL_RE.match(line):
-                        res.add_v_normal(OBJ_Vertex(float(m["x"]), float(m["y"]), float(m["z"])))
+                        res.add_v_normal(vec3(float(m["x"]), float(m["y"]), float(m["z"])))
                     case _:
                         logger.debug("Could not interpret line %d: %s", line_no, line.rstrip())
                         # res.add_unknown(line.rstrip())

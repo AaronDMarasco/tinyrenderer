@@ -73,11 +73,11 @@ def main() -> int:
         try:
             framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
             z_buffer = TGAImage(width, height, TGAImage.Format.GRAYSCALE)
-            obj_data = Model.from_file(fname)
-            for face in obj_data.faces:
+            model = Model.from_file(fname)
+            for face in model.faces:
                 idx = (face[0].vertex, face[1].vertex, face[2].vertex)
                 # Read those out
-                points = (obj_data.vertices[idx[0]], obj_data.vertices[idx[1]], obj_data.vertices[idx[2]])
+                points = (model.vertices[idx[0]], model.vertices[idx[1]], model.vertices[idx[2]])
                 # Fix quadrant and scaling
                 a = (
                     round((points[0].x + 1) * width_center),

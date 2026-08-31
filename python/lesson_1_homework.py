@@ -42,13 +42,13 @@ def main() -> int:
 
     framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
 
-    obj_data = Model.from_file("../obj/diablo3_pose/diablo3_pose.obj")
+    model = Model.from_file("../obj/diablo3_pose/diablo3_pose.obj")
 
-    for face in obj_data.faces:
+    for face in model.faces:
         # Get the indices of the vertices
         idx = (face[0].vertex, face[1].vertex, face[2].vertex)
         # Read those out
-        points = (obj_data.vertices[idx[0]], obj_data.vertices[idx[1]], obj_data.vertices[idx[2]])
+        points = (model.vertices[idx[0]], model.vertices[idx[1]], model.vertices[idx[2]])
         # Draw the lines
         for i in range(3):
             this = i % 3

@@ -58,12 +58,12 @@ def main() -> int:
         try:
             framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
             z_buffer = TGAImage(width, height, TGAImage.Format.GRAYSCALE)
-            obj_data = Model.from_file(fname)
-            for face in obj_data.faces:
+            model = Model.from_file(fname)
+            for face in model.faces:
                 idx = (face[0].vertex, face[1].vertex, face[2].vertex)
-                a = project(rot(obj_data.vertices[idx[0]]))
-                b = project(rot(obj_data.vertices[idx[1]]))
-                c = project(rot(obj_data.vertices[idx[2]]))
+                a = project(rot(model.vertices[idx[0]]))
+                b = project(rot(model.vertices[idx[1]]))
+                c = project(rot(model.vertices[idx[2]]))
 
                 triangle_barycentric_lesson_4(a, b, c, z_buffer, framebuffer, TGAColor_t.random())
 
