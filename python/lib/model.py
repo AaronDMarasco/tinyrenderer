@@ -4,7 +4,7 @@ import logging
 import re
 from dataclasses import InitVar, dataclass, field
 from pathlib import Path
-from typing import Any, Final, Self
+from typing import Any, Final, Literal, Self, get_args
 
 from .tgaimage import TGAImage
 from .trtypes import vec2, vec3
@@ -36,6 +36,9 @@ SMOOTH_RE: Final = re.compile(r"^s\s+(\d+|off)$")
 
 _SENTINEL = object()
 
+SupportFiles = Literal["diffuse", "glow", "gloss", "nm", "nm_tangent", "spec"]
+SUPPORT_FILES: Final = sorted(get_args(SupportFiles))
+
 
 @dataclass(init=True, slots=True)
 class Model:
@@ -66,12 +69,7 @@ class Model:
     v_normals: list[vec3] = field(init=False, default_factory=lambda: [vec3(0, 0, 0)])
     # unknowns: list[str] = field(init=False, default_factory=list)
     # Various support files that may be present:
-    diffuse: TGAImage | None = field(default=None)
-    glow: TGAImage | None = field(default=None)
-    gloss: TGAImage | None = field(default=None)
-    nm: TGAImage | None = field(default=None)
-    nm_tangent: TGAImage | None = field(default=None)
-    spec: TGAImage | None = field(default=None)
+    ext: dict[SupportFiles, TGAImage] = field(default_factory=dict)
     # Don't allow anybody else to (easily) create this class:
     _guard: InitVar[Any] = field(default=None)
 
@@ -202,18 +200,9 @@ class Model:
                         # res.add_unknown(line.rstrip())
                         raise ValueError(line.rstrip())
         base_file: Final = str(infile)[:-4]
-        if (diffuse_file := Path(f"{base_file}_diffuse.tga")).is_file():
-            res.diffuse = TGAImage.read_tga_file(diffuse_file)
-        if (glow_file := Path(f"{base_file}_glow.tga")).is_file():
-            res.glow = TGAImage.read_tga_file(glow_file)
-        if (gloss_file := Path(f"{base_file}_gloss.tga")).is_file():
-            res.gloss = TGAImage.read_tga_file(gloss_file)
-        if (nm_file := Path(f"{base_file}_nm.tga")).is_file():
-            res.nm = TGAImage.read_tga_file(nm_file)
-        if (nm_tangent_file := Path(f"{base_file}_nm_tangent.tga")).is_file():
-            res.nm_tangent = TGAImage.read_tga_file(nm_tangent_file)
-        if (spec_file := Path(f"{base_file}_spec.tga")).is_file():
-            res.spec = TGAImage.read_tga_file(spec_file)
+        for support_file in SUPPORT_FILES:
+            if (sfile := Path(f"{base_file}_{support_file}.tga")).is_file():
+                res.ext[support_file] = TGAImage.read_tga_file(sfile)
 
         logger.debug("Read OBJ file %s: %s", Path(infile).name, res)
         res.verify()
@@ -227,17 +216,6 @@ class Model:
             f"{len(self.v_normals)} vertex normal(s), "
             f"{len(self.texture_vs)} texture vert(ex|ices)"
         )
-        if self.diffuse:
-            res += f", {self.diffuse.width}x{self.diffuse.height} diffuse image"
-        if self.glow:
-            res += f", {self.glow.width}x{self.glow.height} glow image"
-        if self.gloss:
-            res += f", {self.gloss.width}x{self.gloss.height} gloss image"
-        if self.nm:
-            res += f", {self.nm.width}x{self.nm.height} NM image"
-        if self.nm_tangent:
-            res += f", {self.nm_tangent.width}x{self.nm_tangent.height} NM tangent image"
-        if self.spec:
-            res += f", {self.spec.width}x{self.spec.height} specular image"
-
+        for support_file in (s for s in SUPPORT_FILES if s in self.ext):
+            res += f", {self.ext[support_file].width}x{self.ext[support_file].height} {support_file} image"
         return res

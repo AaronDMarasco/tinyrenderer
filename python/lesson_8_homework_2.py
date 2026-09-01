@@ -47,8 +47,8 @@ class PhongNormalMappingShader(our_gl.IShader):
         assert 0 <= specular_weight <= 1, "Specular term weight should be 0..1 inclusive"
 
         self.model = model
-        assert self.model.nm is not None
-        self.model.nm.flip_vertically()  # We want it 0,0 = bottom left
+        assert "nm" in self.model.ext
+        self.model.ext["nm"].flip_vertically()  # We want it 0,0 = bottom left
         self.color = TGAColor()
         self.vts = [vec2(x=0, y=0), vec2(x=0, y=0), vec2(x=0, y=0)]
         self.sun_vector_l = vec4.from_np(our_gl.model_view @ vec4.from_vec3(sun, w=0)).normalized
@@ -65,17 +65,16 @@ class PhongNormalMappingShader(our_gl.IShader):
 
     def fragment(self: Self, bar: list[float]) -> tuple[bool, TGAColor_t]:
         assert len(bar) == 3, f"Invalid {bar=}"
-        assert self.model.nm is not None
         # For homework 2, we'll read the model's nm instead of the vn from the model
         color_sample: Final[vec2] = self.vts[0] * bar[0] + self.vts[1] * bar[1] + self.vts[2] * bar[2]
 
         # NOTE: The values in self.vt are 0..1 so multiply by size of image
         color_sample_uv: Final[vec2] = vec2(
-            x=self.model.nm.width * color_sample.x,
-            y=self.model.nm.height * color_sample.y,
+            x=self.model.ext["nm"].width * color_sample.x,
+            y=self.model.ext["nm"].height * color_sample.y,
         )
         # Sample the color at U,V and then map it to 0..1
-        nm_color: Final[TGAColor_t] = self.model.nm.get(round(color_sample_uv.x), round(color_sample_uv.y))
+        nm_color: Final[TGAColor_t] = self.model.ext["nm"].get(round(color_sample_uv.x), round(color_sample_uv.y))
         normal_vector_n: Final[vec3] = vec3(x=nm_color.r / 255, y=nm_color.g / 255, z=nm_color.b / 255).normalized
 
         # Compute 0..1 for diffuse term
