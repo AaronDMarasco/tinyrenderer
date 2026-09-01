@@ -5,11 +5,11 @@ clear
 # Run the profiler:
 # DO_PROFILE=x
 # Skip some python self tests:
-export QUICK_CHECK=x
+# export QUICK_CHECK=x
 set -e
-uv --preview-features format format --version "0.16.3"
-uv run ssort --check --diff
+uv --preview-features format format --version "0.16.5"
 set +e
+uv run ssort --check --diff
 uv run ruff check .
 uv run mypy .
 if [[ -z ${LINT_ONLY} ]]; then
