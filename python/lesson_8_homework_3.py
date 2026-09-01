@@ -28,7 +28,6 @@ class PhongNormalMappingShader(our_gl.IShader):
     vts: list[vec2]  # Vector texture U, V
     # These are for reflection stuff:
     sun_vector_l: vec4  # light direction in eye coordinates
-    ambient: float
     diffuse_weight: float
     specular_shine: int
 
@@ -37,24 +36,19 @@ class PhongNormalMappingShader(our_gl.IShader):
         model: ModelV2,
         *,
         sun: vec3,
-        ambient: float = 0.4,
         diffuse_weight: float = 1,
-        specular_weight: float = 1,
         specular_shine: int = 3,
     ) -> None:
-        assert 0 <= ambient <= 1, "Ambient should be 0..1 inclusive"
         assert 0 <= diffuse_weight <= 1, "Diffuse term weight should be 0..1 inclusive"
-        assert 0 <= specular_weight <= 1, "Specular term weight should be 0..1 inclusive"
 
         self.model = model
+        assert "diffuse" in self.model.ext
         assert "nm" in self.model.ext
-        self.model.ext["nm"].flip_vertically()  # We want it 0,0 = bottom left
+        assert "spec" in self.model.ext
         self.color = TGAColor()
         self.vts = [vec2(x=0, y=0), vec2(x=0, y=0), vec2(x=0, y=0)]
         self.sun_vector_l = vec4.from_np(our_gl.model_view @ vec4.from_vec3(sun, w=0)).normalized
-        self.ambient = ambient
         self.diffuse_weight = diffuse_weight
-        self.specular_weight = specular_weight
         self.specular_shine = specular_shine
 
     def vertex(self: Self, face: int, vert: int) -> vec4:
@@ -70,6 +64,9 @@ class PhongNormalMappingShader(our_gl.IShader):
         nm_color: Final[TGAColor_t] = self.model.ext_color("nm", color_sample)
         normal_vector_n: Final[vec3] = vec3(x=nm_color.r / 255, y=nm_color.g / 255, z=nm_color.b / 255).normalized
 
+        # Get the color from the "diffuse" file
+        diff_color: Final[TGAColor_t] = self.model.ext_color("diffuse", color_sample) / 3  # Scale it by 1/3
+
         # Compute 0..1 for diffuse term
         diffuse_raw: Final[float] = self.sun_vector_l.xyz * normal_vector_n
         diffuse: Final = max(0, diffuse_raw)
@@ -77,18 +74,28 @@ class PhongNormalMappingShader(our_gl.IShader):
 
         # Compute 0..1 for specular term
         vector_r: Final[vec3] = (normal_vector_n * diffuse_raw * 2 - self.sun_vector_l).normalized
+
         # specular intensity - note that the camera lies on the z-axis (in eye coordinates),
         # therefore simple r.z, since (0,0,1)*(r.x, r.y, r.z) = r.z
         specular: Final = pow(max(0, vector_r.z), self.specular_shine)
         assert 0 <= specular <= 1, f"'{specular=}' should be 0..1 inclusive?"
+        # Get the color from the "spec" file
+        spec_color: TGAColor_t = (self.model.ext_color("spec", color_sample) / 3) * specular
 
-        # Now combine them (should be 0..3)
-        final = self.ambient + diffuse * self.diffuse_weight + specular * self.specular_weight
-        assert 0 <= final <= 3, f"Final color {final=} should be 0..3 inclusive?"
-        # cpp_color: Final = min(1, self.ambient + 0.4*diffuse + 0.9*specular)
+        if spec_color.bytespp == TGAImage.Format.GRAYSCALE:
+            spec_color = TGAColor(spec_color.b, spec_color.b, spec_color.b, bpp=TGAImage.Format.RGB)
+
+        # Weighted diffuse should be 0..1
+        weighted_diffuse = diffuse * self.diffuse_weight
+        assert 0 <= weighted_diffuse <= 2, f"Weighted diffused {weighted_diffuse} should be 0..1 inclusive?"
+        final_scaled: Final[int] = round(weighted_diffuse * 85)
 
         # Now scale it to 255
-        self.color = TGAColor(round(final * 85))
+        self.color = TGAColor(
+            r=diff_color.r + spec_color.r + final_scaled,
+            g=diff_color.g + spec_color.g + final_scaled,
+            b=diff_color.b + spec_color.b + final_scaled,
+        )
 
         return (False, self.color)  # do not discard the pixel
 
@@ -109,7 +116,7 @@ def main() -> int:
         basename = Path(fname).name[:-4]
         try:
             logger.debug("Processing %s...", basename)
-            framebuffer = TGAImage(w=width, h=height, bpp=TGAImage.Format.GRAYSCALE, c=TGAColor(255 // 2))
+            framebuffer = TGAImage(w=width, h=height, bpp=TGAImage.Format.RGB, c=TGAColor(127, 127, 127))
             our_gl.init_zbuffer(width, height)  # New zbuffer per image
             model = ModelV2.from_file(fname)
             shader = PhongNormalMappingShader(model, sun=sun, specular_shine=35)
