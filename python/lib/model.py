@@ -1,13 +1,12 @@
-# TODO: Some testing would be nice...
-
 from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from pathlib import Path
-from typing import Final, Self
+from typing import Any, Final, Self
 
+from .tgaimage import TGAImage
 from .trtypes import vec2, vec3
 
 logger = logging.getLogger(__name__)
@@ -33,6 +32,9 @@ TEXTURE_V_RE: Final = re.compile(VERTEX_RE.pattern.replace("^v", "^vt"))
 TEXTURE_V_RE_2: Final = re.compile(rf"^vt\s+(?P<x>{FLOATING_RE})\s+(?P<y>{FLOATING_RE})\s*$")
 GROUP_RE: Final = re.compile(r"^g\s*(\w*)$")
 SMOOTH_RE: Final = re.compile(r"^s\s+(\d+|off)$")
+
+
+_SENTINEL = object()
 
 
 @dataclass(init=True, slots=True)
@@ -63,6 +65,20 @@ class Model:
     vertices: list[vec3] = field(init=False, default_factory=lambda: [vec3(0, 0, 0)])
     v_normals: list[vec3] = field(init=False, default_factory=lambda: [vec3(0, 0, 0)])
     # unknowns: list[str] = field(init=False, default_factory=list)
+    # Various support files that may be present:
+    diffuse: TGAImage | None = field(default=None)
+    glow: TGAImage | None = field(default=None)
+    gloss: TGAImage | None = field(default=None)
+    nm: TGAImage | None = field(default=None)
+    nm_tangent: TGAImage | None = field(default=None)
+    spec: TGAImage | None = field(default=None)
+    # Don't allow anybody else to (easily) create this class:
+    _guard: InitVar[Any] = field(default=None)
+
+    def __post_init__(self: Self, _guard: Any) -> None:
+        if _guard is not _SENTINEL:
+            err_msg = "Only call Model.from_file() method to get a Model"
+            raise TypeError(err_msg)
 
     @property
     def groups(self: Self) -> set[str | None]:
@@ -137,7 +153,7 @@ class Model:
 
     @staticmethod
     def from_file(infile: str | Path) -> Model:
-        res = Model()
+        res = Model(_guard=_SENTINEL)
         current_group = None
         current_smooth = None
         with open(infile, encoding="utf-8") as ifile:
@@ -185,15 +201,43 @@ class Model:
                         logger.debug("Could not interpret line %d: %s", line_no, line.rstrip())
                         # res.add_unknown(line.rstrip())
                         raise ValueError(line.rstrip())
+        base_file: Final = str(infile)[:-4]
+        if (diffuse_file := Path(f"{base_file}_diffuse.tga")).is_file():
+            res.diffuse = TGAImage.read_tga_file(diffuse_file)
+        if (glow_file := Path(f"{base_file}_glow.tga")).is_file():
+            res.glow = TGAImage.read_tga_file(glow_file)
+        if (gloss_file := Path(f"{base_file}_gloss.tga")).is_file():
+            res.gloss = TGAImage.read_tga_file(gloss_file)
+        if (nm_file := Path(f"{base_file}_nm.tga")).is_file():
+            res.nm = TGAImage.read_tga_file(nm_file)
+        if (nm_tangent_file := Path(f"{base_file}_nm_tangent.tga")).is_file():
+            res.nm_tangent = TGAImage.read_tga_file(nm_tangent_file)
+        if (spec_file := Path(f"{base_file}_spec.tga")).is_file():
+            res.spec = TGAImage.read_tga_file(spec_file)
+
         logger.debug("Read OBJ file %s: %s", Path(infile).name, res)
         res.verify()
         return res
 
     def __str__(self: Self) -> str:
-        return (
+        res = (
             f"Model({hex(id(self))}) with "
             f"{len(self.faces)} face(s), "
             f"{len(self.vertices) - 1} vert(ex|ices), "
             f"{len(self.v_normals)} vertex normal(s), "
             f"{len(self.texture_vs)} texture vert(ex|ices)"
         )
+        if self.diffuse:
+            res += f", {self.diffuse.width}x{self.diffuse.height} diffuse image"
+        if self.glow:
+            res += f", {self.glow.width}x{self.glow.height} glow image"
+        if self.gloss:
+            res += f", {self.gloss.width}x{self.gloss.height} gloss image"
+        if self.nm:
+            res += f", {self.nm.width}x{self.nm.height} NM image"
+        if self.nm_tangent:
+            res += f", {self.nm_tangent.width}x{self.nm_tangent.height} NM tangent image"
+        if self.spec:
+            res += f", {self.spec.width}x{self.spec.height} specular image"
+
+        return res

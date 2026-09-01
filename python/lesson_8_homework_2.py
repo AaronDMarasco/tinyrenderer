@@ -24,7 +24,6 @@ logging.basicConfig(level=logging.DEBUG)
 
 class PhongNormalMappingShader(our_gl.IShader):
     model: Model
-    model_nm: TGAImage
     color: TGAColor_t
     vts: list[vec2]  # Vector texture U, V
     # These are for reflection stuff:
@@ -37,7 +36,6 @@ class PhongNormalMappingShader(our_gl.IShader):
         self: Self,
         model: Model,
         *,
-        model_nm: TGAImage,
         sun: vec3,
         ambient: float = 0.4,
         diffuse_weight: float = 1,
@@ -49,8 +47,8 @@ class PhongNormalMappingShader(our_gl.IShader):
         assert 0 <= specular_weight <= 1, "Specular term weight should be 0..1 inclusive"
 
         self.model = model
-        self.model_nm = model_nm
-        self.model_nm.flip_vertically()  # We want it 0,0 = bottom left
+        assert self.model.nm is not None
+        self.model.nm.flip_vertically()  # We want it 0,0 = bottom left
         self.color = TGAColor()
         self.vts = [vec2(x=0, y=0), vec2(x=0, y=0), vec2(x=0, y=0)]
         self.sun_vector_l = vec4.from_np(our_gl.model_view @ vec4.from_vec3(sun, w=0)).normalized
@@ -67,16 +65,17 @@ class PhongNormalMappingShader(our_gl.IShader):
 
     def fragment(self: Self, bar: list[float]) -> tuple[bool, TGAColor_t]:
         assert len(bar) == 3, f"Invalid {bar=}"
-        # For homework 2, we'll read the model_nm instead of the vn from the model
+        assert self.model.nm is not None
+        # For homework 2, we'll read the model's nm instead of the vn from the model
         color_sample: Final[vec2] = self.vts[0] * bar[0] + self.vts[1] * bar[1] + self.vts[2] * bar[2]
 
         # NOTE: The values in self.vt are 0..1 so multiply by size of image
         color_sample_uv: Final[vec2] = vec2(
-            x=self.model_nm.width * color_sample.x,
-            y=self.model_nm.height * color_sample.y,
+            x=self.model.nm.width * color_sample.x,
+            y=self.model.nm.height * color_sample.y,
         )
         # Sample the color at U,V and then map it to 0..1
-        nm_color: Final[TGAColor_t] = self.model_nm.get(round(color_sample_uv.x), round(color_sample_uv.y))
+        nm_color: Final[TGAColor_t] = self.model.nm.get(round(color_sample_uv.x), round(color_sample_uv.y))
         normal_vector_n: Final[vec3] = vec3(x=nm_color.r / 255, y=nm_color.g / 255, z=nm_color.b / 255).normalized
 
         # Compute 0..1 for diffuse term
@@ -98,7 +97,6 @@ class PhongNormalMappingShader(our_gl.IShader):
 
         # Now scale it to 255
         self.color = TGAColor(round(final * 85))
-        # self.color = TGAColor(round(255*cpp_color))
 
         return (False, self.color)  # do not discard the pixel
 
@@ -122,8 +120,7 @@ def main() -> int:
             framebuffer = TGAImage(w=width, h=height, bpp=TGAImage.Format.GRAYSCALE, c=TGAColor(255 // 2))
             our_gl.init_zbuffer(width, height)  # New zbuffer per image
             model = Model.from_file(fname)
-            model_nm = TGAImage.read_tga_file(f"{fname[:-4]}_nm.tga")
-            shader = PhongNormalMappingShader(model, model_nm=model_nm, sun=sun, specular_shine=35)
+            shader = PhongNormalMappingShader(model, sun=sun, specular_shine=35)
             logger.debug("Rendering %d faces...", len(model.faces))
             for face in range(len(model.faces)):
                 clip: Triangle = (  # assemble the primitive
