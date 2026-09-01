@@ -156,9 +156,11 @@ class ModelV2:
     def ext_color(self: Self, table: SupportFiles, uv: vec2) -> TGAColor_t:
         """Use file to get a color from a U,V pair"""
         assert table in self.ext, f"External file '{table}' wasn't loaded!"
+        assert 0 <= uv.x <= 1, "Invalid U value!"
+        assert 0 <= uv.y <= 1, "Invalid V value!"
         img = self.ext[table]
         # NOTE: The values are 0..1 so multiply by size of image
-        color_sample_uv: Final = (img.width * uv.x, img.height * uv.y)
+        color_sample_uv: Final = ((img.width - 1) * uv.x, (img.height - 1) * uv.y)
         return img.get(round(color_sample_uv[0]), round(color_sample_uv[1]))
 
     @staticmethod
@@ -217,6 +219,7 @@ class ModelV2:
         for support_file in SUPPORT_FILES:
             if (sfile := Path(f"{base_file}_{support_file}.tga")).is_file():
                 res.ext[support_file] = TGAImage.read_tga_file(sfile)
+                res.ext[support_file].flip_vertically()  # We want it 0,0 = bottom left
 
         logger.debug("Read OBJ file %s: %s", Path(infile).name, res)
         res.verify()

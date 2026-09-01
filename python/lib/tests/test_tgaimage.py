@@ -10,12 +10,13 @@ from typing import Final, NamedTuple, Self
 
 import numpy as np
 import pytest
-from hypothesis import assume, given
+from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 from ..tgaimage import TGAColor, TGAColor_t, TGAImage, uint8_t
 
 valid_uint8_t = st.integers(0, 255)
+valid_uint8_t_div2 = st.integers(0, 127)
 
 
 @cache
@@ -284,6 +285,49 @@ class TestTGAColor:
         else:
             with pytest.raises(ValueError):
                 _ = uut.a
+
+    @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
+    @given(bgra_in=st.lists(valid_uint8_t_div2, min_size=4, max_size=4, unique=True))
+    @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_scaling(self: Self, bgra_in: list[int], bpp: int, subtests: pytest.Subtests) -> None:
+        with subtests.test("Multiplication"):
+            uut = 2 * TGAColor(*bgra_in, bpp=bpp)  # __rmul__
+            assert uut.b == 2 * bgra_in[0]
+            if bpp >= 2:
+                assert uut.g == 2 * bgra_in[1]
+            if bpp >= 3:
+                assert uut.r == 2 * bgra_in[2]
+            if bpp >= 4:
+                assert uut.a == 2 * bgra_in[3]
+            uut = TGAColor(*bgra_in, bpp=bpp) * 1.5  # __mul__
+            assert uut.b == round(1.5 * bgra_in[0])
+            if bpp >= 2:
+                assert uut.g == round(1.5 * bgra_in[1])
+            if bpp >= 3:
+                assert uut.r == round(1.5 * bgra_in[2])
+            if bpp >= 4:
+                assert uut.a == round(1.5 * bgra_in[3])
+        with subtests.test("Division"):
+            uut = TGAColor(*bgra_in, bpp=bpp) / 2
+            assert uut.b == round(bgra_in[0] / 2)
+            if bpp >= 2:
+                assert uut.g == round(bgra_in[1] / 2)
+            if bpp >= 3:
+                assert uut.r == round(bgra_in[2] / 2)
+            if bpp >= 4:
+                assert uut.a == round(bgra_in[3] / 2)
+            uut = TGAColor(*bgra_in, bpp=bpp) / 3.2
+            assert uut.b == round(bgra_in[0] / 3.2)
+            if bpp >= 2:
+                assert uut.g == round(bgra_in[1] / 3.2)
+            if bpp >= 3:
+                assert uut.r == round(bgra_in[2] / 3.2)
+            if bpp >= 4:
+                assert uut.a == round(bgra_in[3] / 3.2)
+        with subtests.test("Overflow"):
+            uut = TGAColor(*[255, 255, 255, 255][:bpp], bpp=bpp)
+            with pytest.raises((OverflowError, ValueError)):
+                _ = 2 * uut
 
 
 @st.composite

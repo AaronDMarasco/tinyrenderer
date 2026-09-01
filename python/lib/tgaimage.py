@@ -127,6 +127,26 @@ class TGAColor_t:
     def __setitem__(self: Self, idx: int, val: uint8_t) -> None:
         raise FrozenInstanceError
 
+    def __mul__(self: Self, other: int | float) -> TGAColor_t:
+        """Scaling"""
+        if not isinstance(other, (int, float, np.integer, np.floating)):
+            return NotImplemented
+        res = b"".join(round(v * other).to_bytes() for v in self._data)
+        return TGAColor_from_raw(res, bpp=self.bytespp, _allow2=True)[0]
+
+    def __rmul__(self: Self, other: int | float) -> TGAColor_t:
+        """Scaling"""
+        return self * other
+
+    def __truediv__(self: Self, other: int | float) -> TGAColor_t:
+        """Scaling"""
+        if isinstance(other, (int, float, np.integer, np.floating)):
+            if other == 0:
+                raise ZeroDivisionError
+            res = b"".join(round(v / other).to_bytes() for v in self._data)
+            return TGAColor_from_raw(res, bpp=self.bytespp, _allow2=True)[0]
+        return NotImplemented
+
     def __le__(self: Self, other: Any) -> bool:
         if not isinstance(other, TGAColor_t) or self.bytespp != other.bytespp:
             return NotImplemented
@@ -207,16 +227,28 @@ def TGAColor(
     else:
         bpp_ = uint8_t(bpp)
 
+    err_msg = "Invalid value given - must be 0..255!"
+    if b is None or not (0 <= b <= 255):
+        raise ValueError(err_msg)
+    if bpp_ >= 2 and (g is None or not (0 <= g <= 255)):
+        raise ValueError(err_msg)
+    if bpp_ >= 3 and (r is None or not (0 <= r <= 255)):
+        raise ValueError(err_msg)
+    if bpp_ >= 4 and (a is None or not (0 <= a <= 255)):
+        raise ValueError(err_msg)
+
     return _TGAColor_factory(bpp_, b, g, r, a)
 
 
-def TGAColor_from_raw(data: bytes, *, bpp: int) -> list[TGAColor_t]:
+def TGAColor_from_raw(data: bytes, *, bpp: int, _allow2: bool = False) -> list[TGAColor_t]:
     """Factory helper - take bytes and get a list of TGAColors"""
     if (ld := len(data)) % bpp:
         warn(f"Possibly bad read of {ld} bytes at {bpp} bpp = remainder {ld % bpp}", stacklevel=2)
 
     if bpp == 1:  # Grayscale
         return [TGAColor(b=v, bpp=1) for v in data]
+    if _allow2 and bpp == 2:  # Special mode for scaling tests only(?)
+        return [TGAColor(b=b, g=g, bpp=2) for (b, g) in batched(data, 2)]
     if bpp == 3:  # RGB
         return [TGAColor(b=b, g=g, r=r, bpp=3) for (b, g, r) in batched(data, 3)]
     if bpp == 4:  # RGBA
