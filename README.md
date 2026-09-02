@@ -27,8 +27,7 @@ This Python fork/branch is unsupported by [Dmitry V. Sokolov](https://github.com
 1. Switch to either `python` or `python_start_here` branch.
 1. Go to the `python` subdirectory.
 1. Run `uv sync --dev`.
-
-From this point, `./check` will lint your code and run any tests it can find.
+1. `./check` will lint your code and run any tests it can find.
 
 ### Misc Python notes
 1. **Warning**: The biggest Python hurdle is `numpy` operations on matrices may use different notation, _e.g._ `@` vs. `*`. The included Python implementation of vectors uses `*` for dot-product; use `vector.cross()` for cross-product.
