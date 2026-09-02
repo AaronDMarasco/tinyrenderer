@@ -7,15 +7,15 @@ from functools import cache, total_ordering
 from io import BytesIO
 from itertools import batched
 from pathlib import Path
-from typing import Any, Final, Self, TypeAlias, TypeVar
+from typing import Any, Final, Self, TypeVar
 from warnings import warn
 
 import numpy as np
 from numpy import dtype
 
 # Some C++ cross-referencing for simplicity
-uint8_t: TypeAlias = np.uint8
-uint16_t: TypeAlias = np.uint16
+uint8_t = np.uint8
+uint16_t = np.uint16
 
 rng = np.random.default_rng()
 
