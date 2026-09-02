@@ -1,4 +1,5 @@
 """##Types, Classes, and Utilities for working with TARGA images"""
+
 from __future__ import annotations
 
 import logging

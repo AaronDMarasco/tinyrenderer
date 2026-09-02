@@ -1,4 +1,5 @@
 """##Custom types used by the Python port of `tinyrenderer`"""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
