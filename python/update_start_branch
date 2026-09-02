@@ -1,0 +1,21 @@
+#!/bin/bash
+if [[ ! -e ../.git/config ]]; then
+  echo "Run only from python subdir!"
+  exit
+fi
+read -r -d '' FILE_LIST << 'END'
+.gitignore
+check
+pyproject.toml
+uv.lock
+lib/trtypes.py
+lib/tgaimage.py
+lib/__init__.py
+lib/tests/test_trtypes.py
+lib/tests/test_tgaimage.py
+lib/tests/__init__.py
+END
+set -x
+for f in ${FILE_LIST}; do
+  git checkout python $f
+done
