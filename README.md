@@ -16,7 +16,7 @@ The code itself is of little interest. Check the course notes:
 13. [Bonus: toon shading](https://haqr.eu/tinyrenderer/toon/)
 14. [Afterword](https://haqr.eu/tinyrenderer/afterword/)
 
-_Notes for Python users:_ This Python branch is unsupported by @ssloy but instead is by @AaronDMarasco on github. In the `python` branch wou will find the solutions, with the naming that the "line drawing algorithm" is considered "Lesson 1." You will also find a branch `python_start_here` that just has the core libraries to start with (TGAImage, etc). The biggest python hurdle is `numpy` operations on matrices may use different notation, _e.g._ `@`.
+_Notes for Python users:_ This Python fork/branch is unsupported by [Dmitry V. Sokolov](https://github.com/ssloy) but instead is by [Aaron D. Marasco](https://github.com/AaronDMarasco) on github. In the `python` branch wou will find the solutions, with the naming that the "line drawing algorithm" is considered "Lesson 1." You will also find a branch `python_start_here` that just has the core libraries to start with (TGAImage, etc). The biggest python hurdle is `numpy` operations on matrices may use different notation, _e.g._ `@`.
 
 _Starting for Python users:_ Make sure `uv` is installed on your machine. Check out the repo, switch to either `python` or `python_start_here` branch, go to the `python` subdirectory, and run `uv sync --dev`. From there, `./check` will lint your code and run any tests it can find.
 
