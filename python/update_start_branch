@@ -4,6 +4,7 @@ if [[ ! -e ../.git/config ]]; then
   exit
 fi
 read -r -d '' FILE_LIST << 'END'
+../README.md
 .gitignore
 check
 pyproject.toml
