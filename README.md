@@ -18,21 +18,28 @@ The code itself is of little interest. Check the course notes:
 
 ---
 
-_Notes for Python users:_ This Python fork/branch is unsupported by [Dmitry V. Sokolov](https://github.com/ssloy) but instead is by [Aaron D. Marasco](https://github.com/AaronDMarasco) on github. In the `python` branch you will find all of the code including solutions, with the naming convention that the "line drawing algorithm" is considered "Lesson 1." You will also find a branch `python_start_here` that just has the core libraries to start with (TGAImage, etc) similar to the original C++.
+## Notes for Python Users
+This Python fork/branch is unsupported by [Dmitry V. Sokolov](https://github.com/ssloy) but instead is by [Aaron D. Marasco](https://github.com/AaronDMarasco). In the `python` branch you will find all of the code (including solutions) with the naming convention that the "line drawing algorithm" is considered "Lesson 1." You will also find a branch `python_start_here` that just has the core libraries to start with (`TGAImage`, etc) similar to the original C++; **it is recommended you start with this branch**.
 
-_Starting for Python users:_ Make sure `uv` is installed on your machine. Check out the repo, switch to either `python` or `python_start_here` branch, go to the `python` subdirectory, and run `uv sync --dev`. From there, `./check` will lint your code and run any tests it can find.
+### Starting for Python users
+1. Make sure `uv` is installed on your machine. ([_Link_](https://docs.astral.sh/uv/getting-started/installation/))
+1. Check out the repo.
+1. Switch to either `python` or `python_start_here` branch.
+1. Go to the `python` subdirectory.
+1. Run `uv sync --dev`.
 
-Misc Python notes:
-1. **Warning**: The biggest Python hurdle is `numpy` operations on matrices may use different notation, _e.g._ `@`. The Python implementation of vectors uses `*` for dot-product, use `vector.cross()` for cross-product.
+From this point, `./check` will lint your code and run any tests it can find.
+
+### Misc Python notes
+1. **Warning**: The biggest Python hurdle is `numpy` operations on matrices may use different notation, _e.g._ `@` vs. `*`. The included Python implementation of vectors uses `*` for dot-product; use `vector.cross()` for cross-product.
 1. I encourage you to look at the files in `lib` and get familiar with the types and utilities that are available.
-   * Limited documentation available by running the `make_doc` script
+   * Limited documentation available by running the `make_doc` script.
 1. When possible, the more "pythonic" property interfaces are used, _e.g._ `vec4.xyz` to return a `vec3` vs. the C++ method call `vec4.xyz()`.
 1. Use `uv run yourscript.py` to run and test your code.
 1. Editing the `check` script gives options like running a profiler or only linting.
 1. Installing the Linux Steam client will get some TGA files that are used by some self-tests; if you do not, they will be safely skipped but not all functionality will be tested.
 1. All Python code is properly typed wherever possible; it gets a little looser when interfacing with `numpy`.
 1. Things outside of `python_start_here` are definitely less documented.
-
 
 _(end of Python notes)_
 
