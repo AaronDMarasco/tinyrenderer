@@ -17,10 +17,11 @@ from numpy import dtype
 uint8_t = np.uint8
 uint16_t = np.uint16
 
+# Top-level utilities
 rng = np.random.default_rng()
-
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
+_SENTINEL = object()  # Stop any direct calls to TGAColor_t
 
 
 # Utility from itertools documentation
@@ -30,6 +31,7 @@ def _grouper(iterable, n):
     return zip(*iterators, strict=True)
 
 
+# The binary layout of a TGA header
 TGAHeader: Final[dtype] = dtype([
     ("idlength", uint8_t),
     ("colormaptype", uint8_t),
@@ -49,6 +51,14 @@ TGAHeader: Final[dtype] = dtype([
 @dataclass(slots=True)
 @total_ordering
 class TGAColor_t:
+    """
+    Base type for a TGAColor
+
+    Because we have lots of these, they are considerd quasi-immutable and can only be generated
+    with a factory function `TGAColor()`. They are then cached so there's only one copy of each
+    color combination in memory.
+    """
+
     _data: tuple[int, ...] = field(init=False)
     _byte_data: bytes | None = field(default=None, init=False)
     _repr: str | None = field(default=None, init=False)
@@ -61,10 +71,15 @@ class TGAColor_t:
         a: int | None = None,
         *,
         bpp: uint8_t | None = None,
+        _guard: Any | None = None,
     ) -> None:
         # Cached responses:
         self._byte_data = None  # __bytes__
         self._repr = None  # __repr__
+
+        if _guard is not _SENTINEL:
+            err_msg = "Only call TGAColor() method to get a TGAColor_t"
+            raise TypeError(err_msg)
 
         if bpp is None:
             raise ValueError("BPP shenanigans? Wrappers should have set this!")
@@ -79,14 +94,17 @@ class TGAColor_t:
 
     @property
     def bytespp(self: Self) -> int:
+        """Bytes-per-pixel"""
         return len(self._data)
 
     @property
     def b(self: Self) -> int:
+        """Blue (or monochrome value)"""
         return self._data[0]
 
     @property
     def g(self: Self) -> int:
+        """Green (if available)"""
         if self.bytespp >= 2:
             return self._data[1]
         err_msg = f"Asked for g (byte 2) when bytespp={self.bytespp}!"
@@ -94,6 +112,7 @@ class TGAColor_t:
 
     @property
     def r(self: Self) -> int:
+        """Red (if available)"""
         if self.bytespp >= 3:
             return self._data[2]
         err_msg = f"Asked for r (byte 3) when bytespp={self.bytespp}!"
@@ -101,6 +120,7 @@ class TGAColor_t:
 
     @property
     def a(self: Self) -> int:
+        """Alpha channel (if available)"""
         if self.bytespp >= 4:
             return self._data[3]
         err_msg = f"Asked for a (byte 4) when bytespp={self.bytespp}!"
@@ -108,6 +128,7 @@ class TGAColor_t:
 
     @staticmethod
     def random(bpp: uint8_t | None = None) -> TGAColor_t:
+        """Provide a new TGAColor with a random color (RGB format by default)"""
         if bpp is None:
             bpp = uint8_t(3)
         coordinates = [int(rng.integers(255)) for _ in range(bpp)]
@@ -122,6 +143,7 @@ class TGAColor_t:
         return TGAColor(*(self._data[:bpp]), bpp=int(bpp))
 
     def __getitem__(self: Self, idx: int) -> uint8_t:
+        """Allow raw indexing like C++ prefers"""
         return uint8_t(self._data[idx])
 
     def __setitem__(self: Self, idx: int, val: uint8_t) -> None:
@@ -194,7 +216,8 @@ def _TGAColor_factory(
     r: int | None = None,
     a: int | None = None,
 ) -> TGAColor_t:
-    return TGAColor_t(b, g, r, a, bpp=bpp)
+    """Helper for the TGAColor() factory"""
+    return TGAColor_t(b, g, r, a, bpp=bpp, _guard=_SENTINEL)
 
 
 def TGAColor(
@@ -205,7 +228,11 @@ def TGAColor(
     *,
     bpp: int | None = None,
 ) -> TGAColor_t:
-    """Factory helper function that caches since they are immutable"""
+    """
+    End user interface to create a TGAColor_t
+
+    Factory helper function that caches since they are "immutable" (but not really)
+    """
     # The bpp logic is here to fix caching of specified or not...
     # Special case: Default constructor is (b=0, bpp=1)
     if (b, g, r, a, bpp) == (None,) * 5:
@@ -260,6 +287,8 @@ TI = TypeVar("TI", bound="TGAImage")
 
 
 class TGAImage:
+    """An in-memory TGAImage"""
+
     class Format(IntEnum):
         GRAYSCALE = 1
         RGB = 3
@@ -272,6 +301,8 @@ class TGAImage:
         self.height = h
         self.bpp: uint8_t = uint8_t(bpp)
         self.fill_value = c if c is not None else TGAColor(*([0] * bpp), bpp=bpp)
+        # Reminder: numpy array is arr[rows][cols] so maps to arr[y][x] not arr[x][y]
+        # Origin is in bottom left corner of image
         self.npdata: np.ndarray = np.full(shape=(h, w), fill_value=self.fill_value)
 
         # These are pretty much for testing purposes only:
@@ -281,6 +312,7 @@ class TGAImage:
 
     @classmethod
     def read_tga_file(cls: type[TI], filename: str | Path) -> TI:
+        """Read a file on disk into memory"""
         header = np.fromfile(filename, dtype=TGAHeader, count=1)[0]
         w = header["width"]
         h = header["height"]
@@ -334,6 +366,7 @@ class TGAImage:
             raise ValueError(err_msg)
 
     def write_tga_file(self: Self, filename: str | Path, vflip: bool = True, rle: bool = True) -> None:
+        """Writes image to disk"""
         # logger.debug("Writing to file %s...", filename)
         self.verify()
         developer_area_ref: Final[bytes] = b"\0\0\0\0"
@@ -360,9 +393,11 @@ class TGAImage:
         self.npdata = np.flipud(self.npdata)
 
     def get(self: Self, x: int, y: int) -> TGAColor_t:
+        """Reads out a given x, y coordinate"""
         return self.npdata[y, x]
 
     def set(self: Self, x: int, y: int, c: TGAColor_t) -> None:
+        """Writes to a given x, y coordinate"""
         if c.bytespp != self.bpp:
             old = c
             try:
@@ -372,11 +407,12 @@ class TGAImage:
                 raise ValueError(err_msg) from err
             warn(f"Pixel write at ({x}, {y}) changed bpp: was {old} now {c}", stacklevel=2)
         if not (0 <= x < self.width) or not (0 <= y < self.height):
-            logger.debug("TGAImage.set(%s, %s) invalid: Image is %d x %d", x, y, self.width, self.height)
+            logger.warning("TGAImage.set(%s, %s) invalid: Image is %d x %d", x, y, self.width, self.height)
             return
         self.npdata[y, x] = c
 
     def load_rle_data(self: Self, in_: bytes) -> bytes:
+        """Decompresses a TGA RLE stream"""
         # See https://www.fileformat.info/format/tga/egff.htm
         pixel_count: Final[int] = self.width * self.height
         current_pixel: int = 0
@@ -404,8 +440,8 @@ class TGAImage:
         """
         Weirdly named; actually does the RLE encoding
 
-        Takes advantage of numpy parallelization my having it do the heavy lifting and then
-        encode it as TGA requires
+        Takes advantage of numpy parallelization by having it do the heavy lifting and then
+        RLE encode it as TGA requires
         """
         flat_data: Final = self.npdata.ravel()
 
