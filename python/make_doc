@@ -1,0 +1,6 @@
+#!/bin/bash
+uv add --dev pdoc3
+uv run pdoc3 --force --html lib
+uv remove --dev pdoc3
+echo "xdg-open html/lib/index.html to open in browser"
+echo "Or some terminals let you click: file://$(pwd)/html/lib/index.html"

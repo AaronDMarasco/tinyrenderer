@@ -7,6 +7,7 @@ read -r -d '' FILE_LIST << 'END'
 ../README.md
 .gitignore
 check
+make_doc
 pyproject.toml
 uv.lock
 lib/trtypes.py

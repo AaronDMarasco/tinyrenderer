@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from math import isnan
-from typing import Self, TypeAlias
+from typing import Self
 
 import numpy as np
 import pytest
@@ -15,7 +15,7 @@ from ..trtypes import Matrix2f, Matrix3f, Matrix4f, MatrixLike, ZBuffer, _Vector
 # positive_integers  = st.integers(min_value=0, max_value=2**31 - 1)
 reasonable_integers = st.integers(min_value=-(2**31), max_value=2**31 - 1)
 
-VecParam: TypeAlias = tuple[int, type[_VectorBase]]
+type VecParam = tuple[int, type[_VectorBase]]
 
 
 @pytest.mark.parametrize("vec_param", [(2, vec2), (3, vec3), (4, vec4)], ids=["vec2", "vec3", "vec4"])

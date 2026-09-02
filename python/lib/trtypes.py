@@ -23,6 +23,7 @@ def empty_matrix(rc: Literal[3], /) -> Matrix3f: ...
 @overload
 def empty_matrix(rc: Literal[4], /) -> Matrix4f: ...
 def empty_matrix(rc: int, /) -> MatrixLike:
+    """Provide a new empty matrix of size rc (rows/columns)"""
     if not (2 <= rc <= 4):
         err_msg = f"Couldn't determine type {rc}!"
         raise ValueError(err_msg)
@@ -31,6 +32,8 @@ def empty_matrix(rc: int, /) -> MatrixLike:
 
 @dataclass(slots=True)
 class ZBuffer:
+    """Raw list of Z values, used in later assignments"""
+
     vals: list[list[float]] = field(init=False)
 
     def __init__(self: Self, *, width: int, height: int) -> None:
@@ -61,19 +64,24 @@ class ZBuffer:
 
 @dataclass(frozen=True, slots=True)
 class _VectorBase(ABC):
+    """vec2 from the C++ code, roughly ported"""
+
     x: float
     y: float
 
     @property
     @abstractmethod
-    def array(self: Self) -> list[float]: ...
+    def array(self: Self) -> list[float]:
+        """Convert to standard python list"""
 
     @property
     def norm(self: Self) -> float:
+        """Compute norm (from C++)"""
         return float(numpy.sqrt(self.np @ self.np))
 
     @property
     def normalized(self: Self) -> Self:
+        """Make magnitude of a vector 1"""
         denom: Final = numpy.linalg.norm(self.np)
         if denom == 0:
             if all(x == 0 for x in self.array):
@@ -83,19 +91,22 @@ class _VectorBase(ABC):
 
     @property
     def np(self: Self) -> npt.NDArray[numpy.float64]:
+        """The numpy representation of this 'vector'"""
         return numpy.array(self.array, dtype=float)
 
     def __array__(
         self: Self, dtype: npt.DTypeLike | None = None, copy: bool | None = None
     ) -> npt.NDArray[numpy.float64]:
-        # This allows numpy to treat us as "native" data
+        # This allows numpy to treat us as "native" data without always calling vec.np
         return numpy.array(self.array, dtype=dtype, copy=copy)
 
     @staticmethod
     @abstractmethod
-    def from_np(array: npt.NDArray[numpy.float64]) -> _VectorBase: ...
+    def from_np(array: npt.NDArray[numpy.float64]) -> _VectorBase:
+        """Create a vector from a numpy array"""
 
     def cross(self: Self, other: Self) -> Self:
+        """Cross-product of two vectors"""
         if not isinstance(other, self.__class__):
             return NotImplemented
         return cast(Self, self.from_np(numpy.cross(self.np, other.np)))
@@ -218,4 +229,4 @@ class vec4(vec3):
         return vec4(self.x - other.x, self.y - other.y, self.z - other.z, self.w - other.w)
 
 
-type Triangle = tuple[vec4, vec4, vec4]
+type Triangle = tuple[vec4, vec4, vec4]  # Used in Lesson 7 and beyond

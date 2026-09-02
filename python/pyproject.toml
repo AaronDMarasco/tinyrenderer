@@ -42,9 +42,6 @@ select = [
     "I",
     "RUF",
 ]
-ignore = [
-  "non-pep695-type-alias",
-]
 preview = true
 
 # [tool.mypy]
