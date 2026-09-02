@@ -25,7 +25,7 @@ _Starting for Python users:_ Make sure `uv` is installed on your machine. Check 
 Misc Python notes:
 1. **Warning**: The biggest Python hurdle is `numpy` operations on matrices may use different notation, _e.g._ `@`. The Python implementation of vectors uses `*` for dot-product, use `vector.cross()` for cross-product.
 1. I encourage you to look at the files in `lib` and get familiar with the types and utilities that are available.
-  * Limited documentation available by running the `make_doc` script
+   * Limited documentation available by running the `make_doc` script
 1. When possible, the more "pythonic" property interfaces are used, _e.g._ `vec4.xyz` to return a `vec3` vs. the C++ method call `vec4.xyz()`.
 1. Use `uv run yourscript.py` to run and test your code.
 1. Editing the `check` script gives options like running a profiler or only linting.
