@@ -7,8 +7,11 @@ from typing import Final, Self
 
 import lib.our_gl as our_gl
 from lib.model_v2 import ModelV2
+from lib.plot import plot
 from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
 from lib.trtypes import Triangle, vec2, vec3, vec4
+
+PLOT: Final[bool] = True
 
 width: Final = 1024
 height: Final = 1024
@@ -133,6 +136,7 @@ def main() -> int:
 
             framebuffer.write_tga_file(f"{basename}.tga")
             our_gl.z_buffer.to_tga(allow_nan=True, nan_val=0).write_tga_file(f"{basename}_z.tga")
+            plot(framebuffer, PLOT)
 
         except Exception as err:
             print(f"Could not process {fname}: {err}")
