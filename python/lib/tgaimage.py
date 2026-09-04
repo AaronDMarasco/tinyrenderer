@@ -9,15 +9,12 @@ from functools import cache, total_ordering
 from io import BytesIO
 from itertools import batched
 from pathlib import Path
-from types import ModuleType
 from typing import Any, Final, Self, TypeVar
 from warnings import warn
 
 import numpy as np
 import numpy.typing as npt
 from numpy import dtype
-
-plt: ModuleType | None
 
 try:
     err: ImportError | None = None
@@ -26,8 +23,6 @@ try:
     import matplotlib.pyplot as plt
 except ImportError as e:
     err = e
-    plt = None  # Test script wants it
-
 
 # Some C++ cross-referencing for simplicity
 uint8_t = np.uint8
