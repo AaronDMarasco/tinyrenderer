@@ -26,6 +26,7 @@ This Python fork/branch is unsupported by [Dmitry V. Sokolov](https://github.com
 1. Check out the repo.
 1. Switch to either `python` or `python_start_here` branch.
 1. Go to the `python` subdirectory.
+1. Optionally add `matplotlib` to the project for test plotting with `uv add --dev matplotlib`
 1. Run `uv sync --dev`.
 1. `./check` will lint your code and run any tests it can find.
 
@@ -38,7 +39,7 @@ This Python fork/branch is unsupported by [Dmitry V. Sokolov](https://github.com
 1. Editing the `check` script gives options like running a profiler or only linting.
 1. Installing the Linux Steam client will get some TGA files that are used by some self-tests; if you do not, they will be safely skipped but not all functionality will be tested.
 1. All Python code is properly typed wherever possible; it gets a little looser when interfacing with `numpy`.
-1. Things outside of `python_start_here` are definitely less documented.
+1. Things outside of `python_start_here` are definitely less documented and was me learning and playing.
 
 _(end of Python notes)_
 

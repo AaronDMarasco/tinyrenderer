@@ -14,6 +14,7 @@ from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 from ..tgaimage import TGAColor, TGAColor_t, TGAImage, uint8_t
+from ..tgaimage import err as plot_err
 
 valid_uint8_t = st.integers(0, 255)
 valid_uint8_t_div2 = st.integers(0, 127)
@@ -503,3 +504,10 @@ class TestTGAImage:
         self.check_image(uut, file_suite)
         assert uut.was_vflipped == vflip, f"Expected {vflip=} but got {uut.was_vflipped}"
         assert uut.was_rle == rle, f"Expected {rle=} but got {uut.was_rle}"
+
+    @pytest.mark.skipif(bool(os.getenv("QUICK_CHECK")), reason="QUICK_CHECK")
+    @pytest.mark.skipif(plot_err is not None, reason="matplotlib wasn't imported")
+    def test_plot(self: Self, file_suite: GoldenFile) -> None:
+        TestTGAImage.skip_missing(file_suite.path)
+        uut = _read_tga_file(file_suite.path)
+        uut.plot(_test_mode=True)

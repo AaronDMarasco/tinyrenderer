@@ -9,11 +9,25 @@ from functools import cache, total_ordering
 from io import BytesIO
 from itertools import batched
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Final, Self, TypeVar
 from warnings import warn
 
 import numpy as np
+import numpy.typing as npt
 from numpy import dtype
+
+plt: ModuleType | None
+
+try:
+    err: ImportError | None = None
+    logging.getLogger("matplotlib").setLevel("WARNING")
+    logging.getLogger("PIL").setLevel("WARNING")
+    import matplotlib.pyplot as plt
+except ImportError as e:
+    err = e
+    plt = None  # Test script wants it
+
 
 # Some C++ cross-referencing for simplicity
 uint8_t = np.uint8
@@ -93,6 +107,22 @@ class TGAColor_t:
         if None in self._data:
             err_msg = f"Out-of-order None in constructor! ({b=} {g=} {r=} {a=} {bpp=})"
             raise ValueError(err_msg)
+
+    @property
+    def rgba(self: Self) -> npt.NDArray[np.uint8]:
+        """Converts to an array that matplotlib can use for imshow()"""
+        # numpy and matplotlib expect 1, 3, or 4 byte data in the order of RGBA
+        match self.bytespp:
+            case 1:
+                data = [self.b]
+            case 3:
+                data = [self.r, self.g, self.b]
+            case 4:
+                data = [self.r, self.g, self.b, self.a]
+            case _:
+                err_msg = f"Cannot convert {self.bytespp}-byte colors to numpy image array"
+                raise ValueError(err_msg)
+        return np.fromiter(map(uint8_t, data), dtype=uint8_t)
 
     @property
     def bytespp(self: Self) -> int:
@@ -305,12 +335,26 @@ class TGAImage:
         self.fill_value = c if c is not None else TGAColor(*([0] * bpp), bpp=bpp)
         # Reminder: numpy array is arr[rows][cols] so maps to arr[y][x] not arr[x][y]
         # Origin is in bottom left corner of image
-        self.npdata: np.ndarray = np.full(shape=(h, w), fill_value=self.fill_value)
+        self.npdata: np.ndarray = np.full(shape=(h, w), dtype=TGAColor_t, fill_value=self.fill_value)
 
         # These are pretty much for testing purposes only:
         self.was_hflipped = False
         self.was_vflipped = False
         self.was_rle = False
+
+    @property
+    def rgba(self: Self) -> npt.NDArray[np.uint8]:
+        """Converts to an array that matplotlib can use for imshow()"""
+        rgba = np.vectorize(lambda px: px.rgba, signature=f"()->({self.bpp})")
+        return rgba(self.npdata)
+
+    def __array__(self: Self, dtype: npt.DTypeLike | None = None, copy: bool | None = None) -> npt.NDArray:
+        # This allows numpy to treat us as "native" data
+        if dtype is not None:
+            err_msg = f"I don't know how to convert myself to {dtype}!"
+            raise ValueError(err_msg)
+        return self.rgba
+        return np.array(self.npdata, dtype=dtype, copy=copy)
 
     @classmethod
     def read_tga_file(cls: type[TI], filename: str | Path) -> TI:
@@ -494,6 +538,24 @@ class TGAImage:
                     res.write(bytes(unique_values[i]))
                     count -= size
             return res.getvalue()
+
+    def plot(self: Self, plot: bool = True, *, _test_mode: bool = False) -> None:
+        """Plot an image using matplotlib"""
+        if not plot:
+            return
+        if err is not None:
+            logger.warning(
+                "Could not plot %dx%dx%d image - matplotlib failed import: %s",
+                self.width,
+                self.height,
+                self.bpp,
+                err,
+            )
+            return
+        assert plt is not None  # Keep typing happy
+        plt.imshow(self, origin="lower")
+        if not _test_mode:
+            plt.show()
 
     def __str__(self: Self) -> str:
         return f"{self.width}x{self.height}/{self.bpp}"
