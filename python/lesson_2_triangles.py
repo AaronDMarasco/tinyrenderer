@@ -3,7 +3,6 @@ from __future__ import annotations
 import sys
 from typing import Final
 
-from lib.plot import plot
 from lib.tgaimage import TGAColor_t, TGAImage, green, red, white
 
 
@@ -71,7 +70,7 @@ def main() -> int:
     triangle((120, 35), (90, 5), (45, 110), framebuffer, white, fill=True)
     triangle((115, 83), (80, 90), (85, 120), framebuffer, green)
     framebuffer.write_tga_file("framebuffer.tga")
-    plot(framebuffer)
+    framebuffer.plot()
 
     return 0
 

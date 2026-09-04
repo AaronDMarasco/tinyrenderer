@@ -9,12 +9,25 @@ from functools import cache, total_ordering
 from io import BytesIO
 from itertools import batched
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Final, Self, TypeVar
 from warnings import warn
 
 import numpy as np
 import numpy.typing as npt
 from numpy import dtype
+
+plt: ModuleType | None
+
+try:
+    err: ImportError | None = None
+    logging.getLogger("matplotlib").setLevel("WARNING")
+    logging.getLogger("PIL").setLevel("WARNING")
+    import matplotlib.pyplot as plt
+except ImportError as e:
+    err = e
+    plt = None  # Test script wants it
+
 
 # Some C++ cross-referencing for simplicity
 uint8_t = np.uint8
@@ -525,6 +538,24 @@ class TGAImage:
                     res.write(bytes(unique_values[i]))
                     count -= size
             return res.getvalue()
+
+    def plot(self: Self, plot: bool = True, *, _test_mode: bool = False) -> None:
+        """Plot an image using matplotlib"""
+        if not plot:
+            return
+        if err is not None:
+            logger.warning(
+                "Could not plot %dx%dx%d image - matplotlib failed import: %s",
+                self.width,
+                self.height,
+                self.bpp,
+                err,
+            )
+            return
+        assert plt is not None  # Keep typing happy
+        plt.imshow(self, origin="lower")
+        if not _test_mode:
+            plt.show()
 
     def __str__(self: Self) -> str:
         return f"{self.width}x{self.height}/{self.bpp}"
