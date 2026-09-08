@@ -1,7 +1,7 @@
 #!/bin/env python
 from __future__ import annotations
 
-from math import isnan
+from math import isnan, nan
 from typing import Self
 
 import numpy as np
@@ -264,6 +264,21 @@ template<int R1,int C1,int C2>mat<R1,C2> operator*(const mat<R1,C1>& lhs, const 
         for r in range(width):
             for c in range(width):
                 assert expected[r][c] == pytest.approx(res[r][c])
+
+    def test_new_zero(self, vec_param: VecParam) -> None:
+        _, class_ = vec_param
+        uut1 = class_.new_zero()
+        uut2 = class_.new_zero()
+        assert uut1 == uut2
+        assert uut1 is not uut2
+        assert sum(uut1.array) == sum(uut2.array) == 0
+
+    def test_new_nan(self, vec_param: VecParam) -> None:
+        _, class_ = vec_param
+        uut1 = class_.new_nan()
+        uut2 = class_.new_nan()
+        assert all(v is nan for v in uut1.array)
+        assert uut1 is not uut2
 
 
 class TestZBuffer:

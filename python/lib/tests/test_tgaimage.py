@@ -229,6 +229,21 @@ class TestTGAColor:
         assert TGAColor(2) >= TGAColor(1, bpp=1)
         assert TGAColor(1) >= TGAColor()
 
+    @given(b=valid_uint8_t, g=valid_uint8_t, r=valid_uint8_t, a=valid_uint8_t)
+    def test_max_color(self: Self, b: int, g: int, r: int, a: int) -> None:
+        uut = TGAColor(b, g, r, a)
+        max_val = max((b, g, r))
+        assume(a >= max_val)  # Want it to be independent of alpha
+        assert uut.max_color == max_val
+
+    @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
+    @given(bgra_in=st.lists(valid_uint8_t, min_size=4, max_size=4))
+    def test_max_color_parameterized(self: Self, bgra_in: list[int], bpp: int) -> None:
+        uut = TGAColor(*bgra_in, bpp=bpp)
+        max_color_idx = min(bpp, 3)  # Want to ignore alpha (if present)
+        max_val = max(bgra_in[:max_color_idx])
+        assert uut.max_color == max_val
+
     @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
     @given(bgra_in=st.lists(valid_uint8_t, min_size=8, max_size=8))
     def test_sorting_hypothesis_le(self: Self, bgra_in: list[int], bpp: int) -> None:
@@ -389,6 +404,38 @@ class TestTGAImage:
     # Test methods:
     def test_bad_file(self: Self) -> None:
         uut = TGAImage()
+        with pytest.raises(OSError):
+            uut.read_tga_file("/abc.tga")
+
+    @given(w=st.integers(min_value=1, max_value=32), h=st.integers(min_value=1, max_value=32))
+    @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_brighten(self: Self, caplog: pytest.LogCaptureFixture, subtests: pytest.Subtests, w: int, h: int) -> None:
+        uut = TGAImage(w=w, h=h, bpp=3)
+
+        def _helper(text: str, start: TGAColor_t, expected: TGAColor_t) -> None:
+            with subtests.test(text):
+                uut.set(w // 2, h // 2, start)
+                uut.brighten()
+                assert uut.get(w // 2, h // 2) == expected
+
+        with subtests.test("Black"), caplog.at_level("DEBUG"):
+            uut.set(w, h, TGAColor(0, 0, 0))
+            uut.brighten()
+            assert "all-black" in caplog.text
+
+        _helper("Tiny Red", TGAColor(r=2, g=0, b=0), TGAColor(r=255, g=0, b=0))
+        _helper("Half Red", TGAColor(r=128, g=0, b=0), TGAColor(r=255, g=0, b=0))
+        _helper("Full Red", TGAColor(r=255, g=0, b=0), TGAColor(r=255, g=0, b=0))
+        _helper("Tiny Green", TGAColor(r=0, g=2, b=0), TGAColor(r=0, g=255, b=0))
+        _helper("Half Green", TGAColor(r=0, g=128, b=0), TGAColor(r=0, g=255, b=0))
+        _helper("Full Green", TGAColor(r=0, g=255, b=0), TGAColor(r=0, g=255, b=0))
+        _helper("Tiny Blue", TGAColor(r=0, g=0, b=2), TGAColor(r=0, g=0, b=255))
+        _helper("Half Blue", TGAColor(r=0, g=0, b=128), TGAColor(r=0, g=0, b=255))
+        _helper("Full Blue", TGAColor(r=0, g=0, b=255), TGAColor(r=0, g=0, b=255))
+        _helper("Tiny Gray", TGAColor(r=2, g=2, b=2), TGAColor(r=255, g=255, b=255))
+        _helper("Half Gray", TGAColor(r=128, g=128, b=128), TGAColor(r=255, g=255, b=255))
+        _helper("Middling Gray", TGAColor(r=127, g=128, b=127), TGAColor(r=253, g=255, b=253))
+
         with pytest.raises(OSError):
             uut.read_tga_file("/abc.tga")
 

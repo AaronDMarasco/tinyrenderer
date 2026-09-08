@@ -120,6 +120,10 @@ class TGAColor_t:
         return np.fromiter(map(uint8_t, data), dtype=uint8_t)
 
     @property
+    def max_color(self: Self) -> uint8_t:
+        return uint8_t(max(self._data[:3]))
+
+    @property
     def bytespp(self: Self) -> int:
         """Bytes-per-pixel"""
         return len(self._data)
@@ -550,6 +554,19 @@ class TGAImage:
         plt.imshow(self, origin="lower")
         if not _test_mode:
             plt.show()
+
+    def brighten(self: Self) -> None:
+        """Helper function to scale up all colors - With Whiter Whites! (TM)"""
+        logger.debug("Brightening")
+        max_color: Final = max(px.max_color for px in self.npdata.ravel())
+        if max_color == 0:
+            logger.warning("Asked to brighten all-black image!")
+            return
+        scaling: Final = 255 / max_color
+        logger.debug("Scaling factor: %s", scaling)
+        scaled: Final = np.vectorize(lambda px: px * scaling)
+        self.npdata = scaled(self.npdata)
+        logger.debug("Done brightening")
 
     def __str__(self: Self) -> str:
         return f"{self.width}x{self.height}/{self.bpp}"

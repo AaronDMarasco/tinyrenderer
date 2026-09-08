@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final, Literal, Self, cast, overload
 
@@ -76,6 +78,28 @@ class _VectorBase(ABC):
     def array(self: Self) -> list[float]:
         """Convert to standard python list"""
 
+    @staticmethod
+    @abstractmethod
+    def new_zero() -> _VectorBase:
+        """Create a one-off with all zeros"""
+        # This is just because I am not sure I want the default constructor to exist...
+
+    @staticmethod
+    @abstractmethod
+    def new_nan() -> _VectorBase:
+        """Create a one-off with all NaN"""
+        # This is just because I am not sure I want the default constructor to exist...
+
+    @staticmethod
+    @abstractmethod
+    def new_zeros(count: int) -> Sequence[_VectorBase]:
+        """Create a list of one-offs with all zeros"""
+
+    @staticmethod
+    @abstractmethod
+    def new_nans(count: int) -> Sequence[_VectorBase]:
+        """Create a list of one-offs with all NaN"""
+
     @property
     def norm(self: Self) -> float:
         """Compute norm (from C++)"""
@@ -148,6 +172,22 @@ class vec2(_VectorBase):
         return [self.x, self.y]
 
     @staticmethod
+    def new_zero() -> vec2:
+        return vec2(x=0, y=0)
+
+    @staticmethod
+    def new_nan() -> vec2:
+        return vec2(x=math.nan, y=math.nan)
+
+    @staticmethod
+    def new_zeros(count: int) -> Sequence[vec2]:
+        return [vec2.new_zero() for _ in range(count)]
+
+    @staticmethod
+    def new_nans(count: int) -> Sequence[vec2]:
+        return [vec2.new_nan() for _ in range(count)]
+
+    @staticmethod
     def from_np(array: npt.NDArray[numpy.float64]) -> vec2:
         assert isinstance(array, numpy.ndarray)
         assert array.shape == (2,), f"Invalid array shape {array.shape}!"
@@ -172,6 +212,22 @@ class vec3(_VectorBase):
     @property
     def array(self: Self) -> list[float]:
         return [self.x, self.y, self.z]
+
+    @staticmethod
+    def new_zero() -> vec3:
+        return vec3(x=0, y=0, z=0)
+
+    @staticmethod
+    def new_nan() -> vec3:
+        return vec3(x=math.nan, y=math.nan, z=math.nan)
+
+    @staticmethod
+    def new_zeros(count: int) -> Sequence[vec3]:
+        return [vec3.new_zero() for _ in range(count)]
+
+    @staticmethod
+    def new_nans(count: int) -> Sequence[vec3]:
+        return [vec3.new_nan() for _ in range(count)]
 
     @staticmethod
     def from_np(array: npt.NDArray[numpy.float64]) -> vec3:
@@ -202,6 +258,22 @@ class vec4(vec3):
     @property
     def array(self: Self) -> list[float]:
         return [self.x, self.y, self.z, self.w]
+
+    @staticmethod
+    def new_zero() -> vec4:
+        return vec4(x=0, y=0, z=0, w=0)
+
+    @staticmethod
+    def new_nan() -> vec4:
+        return vec4(x=math.nan, y=math.nan, z=math.nan, w=math.nan)
+
+    @staticmethod
+    def new_zeros(count: int) -> Sequence[vec4]:
+        return [vec4.new_zero() for _ in range(count)]
+
+    @staticmethod
+    def new_nans(count: int) -> Sequence[vec4]:
+        return [vec4.new_nan() for _ in range(count)]
 
     @staticmethod
     def from_np(array: npt.NDArray[numpy.float64]) -> vec4:
