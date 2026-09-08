@@ -21,15 +21,6 @@ sun: Final = vec3(1, 1, 1)  # Sun location
 
 
 class PhongShader(our_gl.IShader):
-    model: Model
-    color: TGAColor_t
-    tri: list[vec3]  # Triangle in eye coordinates
-    # These are for reflection stuff:
-    sun_vector_l: vec4
-    ambient: float
-    diffuse_weight: float
-    specular_shine: int
-
     def __init__(
         self: Self,
         model: Model,
@@ -46,7 +37,7 @@ class PhongShader(our_gl.IShader):
 
         self.model = model
         self.color = TGAColor()
-        self.tri = [vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0)]
+        self.tri = [vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0)]  # Triangle in eye coordinates
         self.sun_vector_l = vec4.from_np(our_gl.model_view @ vec4.from_vec3(sun, w=0)).normalized
         self.ambient = ambient
         self.diffuse_weight = diffuse_weight

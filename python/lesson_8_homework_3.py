@@ -25,14 +25,6 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 class PhongNormalMappingShader(our_gl.IShader):
-    model: ModelV2
-    color: TGAColor_t
-    vts: list[vec2]  # Vector texture U, V
-    # These are for reflection stuff:
-    sun_vector_l: vec4  # light direction in eye coordinates
-    diffuse_weight: float
-    specular_shine: int
-
     def __init__(
         self: Self,
         model: ModelV2,

@@ -349,7 +349,6 @@ class TGAImage:
             err_msg = f"I don't know how to convert myself to {dtype}!"
             raise ValueError(err_msg)
         return self.rgba
-        return np.array(self.npdata, dtype=dtype, copy=copy)
 
     @classmethod
     def read_tga_file(cls: type[TI], filename: str | Path) -> TI:

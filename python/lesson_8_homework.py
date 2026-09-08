@@ -19,16 +19,6 @@ sun: Final = vec3(1, 1, 1)  # Sun location
 
 
 class PhongShader(our_gl.IShader):
-    model: Model
-    color: TGAColor_t
-    tri: list[vec3]  # Triangle in eye coordinates
-    vns: list[vec3]  # Vector Normal for each vertex of triangle
-    # These are for reflection stuff:
-    sun_vector_l: vec3  # light direction in eye coordinates
-    ambient: float
-    diffuse_weight: float
-    specular_shine: int
-
     def __init__(
         self: Self,
         model: Model,

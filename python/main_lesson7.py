@@ -18,14 +18,10 @@ up: Final = vec3(0, 1, 0)  # Camera up vector
 
 
 class RandomShader(our_gl.IShader):
-    model: Model
-    color: TGAColor_t
-    tri: list[vec3]  # Triangle in eye coordinates
-
     def __init__(self: Self, model: Model) -> None:
         self.model = model
         self.color = TGAColor()
-        self.tri = [vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0)]
+        self.tri = [vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0), vec3(x=0, y=0, z=0)]  # Triangle in eye coordinates
 
     def vertex(self: Self, face: int, vert: int) -> vec4:
         v: Final[vec3] = self.model.vert(face, vert)  # current vertex in object coordinates
