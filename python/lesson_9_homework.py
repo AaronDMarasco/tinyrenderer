@@ -9,8 +9,8 @@ import numpy as np
 
 import lib.our_gl as our_gl
 from lib.model_v2 import ModelV2
-from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
-from lib.trtypes import Triangle, vec2, vec3, vec4
+from lib.tgaimage import TGAColor, TGAColor_t, TGAImage, black
+from lib.trtypes import Triangle, ZBuffer, vec2, vec3, vec4
 
 PLOT: Final[bool] = True
 
@@ -129,21 +129,31 @@ class Lesson9Shader(our_gl.IShader):
 def main() -> int:
 
     find_output = """
-../obj/african_head/african_head.obj
-../obj/african_head/african_head_eye_inner.obj
 ../obj/african_head/african_head_eye_outer.obj
+../obj/african_head/african_head_eye_inner.obj
+../obj/african_head/african_head.obj
 ../obj/diablo3_pose/diablo3_pose.obj
 """
     our_gl.lookat(eye, center, up)  # build global model_view
     our_gl.init_perspective((eye - center).norm)  # build global persepctive
     our_gl.init_viewport(width // 16, height // 16, width * 7 // 8, height * 7 // 8)  # build global view_port
 
+    # These should be defaultdict but quick and dirty
+    framebuffers: dict[str, TGAImage] = {}
+    zbuffers: dict[str, ZBuffer] = {}
+
     for fname in find_output.split():
         basename = Path(fname).name[:-4]
+        path_name = fname.split("/")[2]
+        if path_name not in framebuffers:
+            framebuffers[path_name] = TGAImage(w=width, h=height, bpp=TGAImage.Format.RGB, c=black)
         try:
             logger.debug("Processing %s...", basename)
-            framebuffer = TGAImage(w=width, h=height, bpp=TGAImage.Format.RGB, c=TGAColor(127, 127, 127))
-            our_gl.init_zbuffer(width, height)  # New zbuffer per image
+            framebuffer = framebuffers[path_name]
+            if path_name not in zbuffers:
+                our_gl.init_zbuffer(width, height)  # New zbuffer per image
+            else:
+                our_gl.z_buffer = zbuffers[path_name]
             model = ModelV2.from_file(fname)
             shader = Lesson9Shader(model, sun=sun, specular_shine=35)
             logger.debug("Rendering %d faces...", len(model.faces))
@@ -157,10 +167,12 @@ def main() -> int:
                 )
                 our_gl.rasterize(clip, shader, framebuffer)  # rasterize the primitive
 
-            framebuffer.brighten()
+            prev_max = framebuffer.set_max(255)
             framebuffer.write_tga_file(f"{basename}.tga")
             our_gl.z_buffer.to_tga(allow_nan=True, nan_val=0).write_tga_file(f"{basename}_z.tga")
             framebuffer.plot(PLOT)
+            framebuffer.set_max(prev_max)  # un-brighten in case we re-use it
+            zbuffers[path_name] = our_gl.z_buffer
 
         except Exception as err:
             print(f"Could not process {fname}: {err}")

@@ -555,18 +555,23 @@ class TGAImage:
         if not _test_mode:
             plt.show()
 
-    def brighten(self: Self) -> None:
-        """Helper function to scale up all colors - With Whiter Whites! (TM)"""
-        logger.debug("Brightening")
-        max_color: Final = max(px.max_color for px in self.npdata.ravel())
+    def set_max(self: Self, max_val: uint8_t | int) -> uint8_t:
+        """Helper function to scale up/down all colors"""
+        logger.debug("set_max(%d)", max_val)
+        max_color: Final[uint8_t] = max(px.max_color for px in self.npdata.ravel())
         if max_color == 0:
-            logger.warning("Asked to brighten all-black image!")
-            return
-        scaling: Final = 255 / max_color
+            logger.warning("Asked to manipulate all-black image!")
+            return uint8_t(0)
+        scaling: Final = max_val / max_color
         logger.debug("Scaling factor: %s", scaling)
         scaled: Final = np.vectorize(lambda px: px * scaling)
         self.npdata = scaled(self.npdata)
-        logger.debug("Done brightening")
+        logger.debug("Done scaling")
+        return max_color
+
+    def brighten(self: Self) -> None:
+        """Helper function to scale up all colors - With Whiter Whites! (TM)"""
+        self.set_max(255)
 
     def __str__(self: Self) -> str:
         return f"{self.width}x{self.height}/{self.bpp}"
@@ -577,3 +582,4 @@ green: Final = TGAColor(0, 255, 0, 255).resize(bpp=3)
 red: Final = TGAColor(0, 0, 255, 255).resize(bpp=3)
 blue: Final = TGAColor(255, 128, 64, 255).resize(bpp=3)
 yellow: Final = TGAColor(0, 200, 255, 255).resize(bpp=3)
+black: Final = TGAColor(0, 0, 0)

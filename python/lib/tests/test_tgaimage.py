@@ -244,6 +244,37 @@ class TestTGAColor:
         max_val = max(bgra_in[:max_color_idx])
         assert uut.max_color == max_val
 
+    @given(box=st.integers(min_value=1, max_value=32), new_max=valid_uint8_t)
+    @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_set_max(
+        self: Self, caplog: pytest.LogCaptureFixture, subtests: pytest.Subtests, box: int, new_max: int
+    ) -> None:
+        uut = TGAImage(w=box, h=box, bpp=3)
+
+        def _helper(text: str, start: TGAColor_t) -> None:
+            with subtests.test(f"{text}/{box}x{box}/{new_max}"):
+                uut.set(box // 2, box // 2, start)
+                uut.set_max(new_max)
+                assert uut.get(box // 2, box // 2).max_color == new_max
+
+        with subtests.test(f"Black/{box}x{box}/{new_max}"), caplog.at_level("DEBUG"):
+            uut.set(box, box, TGAColor(0, 0, 0))
+            uut.set_max(new_max)
+            assert "all-black" in caplog.text
+
+        _helper("Tiny Red", TGAColor(r=2, g=0, b=0))
+        _helper("Half Red", TGAColor(r=128, g=0, b=0))
+        _helper("Full Red", TGAColor(r=255, g=0, b=0))
+        _helper("Tiny Green", TGAColor(r=0, g=2, b=0))
+        _helper("Half Green", TGAColor(r=0, g=128, b=0))
+        _helper("Full Green", TGAColor(r=0, g=255, b=0))
+        _helper("Tiny Blue", TGAColor(r=0, g=0, b=2))
+        _helper("Half Blue", TGAColor(r=0, g=0, b=128))
+        _helper("Full Blue", TGAColor(r=0, g=0, b=255))
+        _helper("Tiny Gray", TGAColor(r=2, g=2, b=2))
+        _helper("Half Gray", TGAColor(r=128, g=128, b=128))
+        _helper("Middling Gray", TGAColor(r=127, g=128, b=127))
+
     @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
     @given(bgra_in=st.lists(valid_uint8_t, min_size=8, max_size=8))
     def test_sorting_hypothesis_le(self: Self, bgra_in: list[int], bpp: int) -> None:
@@ -407,19 +438,19 @@ class TestTGAImage:
         with pytest.raises(OSError):
             uut.read_tga_file("/abc.tga")
 
-    @given(w=st.integers(min_value=1, max_value=32), h=st.integers(min_value=1, max_value=32))
+    @given(box=st.integers(min_value=1, max_value=32))
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_brighten(self: Self, caplog: pytest.LogCaptureFixture, subtests: pytest.Subtests, w: int, h: int) -> None:
-        uut = TGAImage(w=w, h=h, bpp=3)
+    def test_brighten(self: Self, caplog: pytest.LogCaptureFixture, subtests: pytest.Subtests, box: int) -> None:
+        uut = TGAImage(w=box, h=box, bpp=3)
 
         def _helper(text: str, start: TGAColor_t, expected: TGAColor_t) -> None:
-            with subtests.test(text):
-                uut.set(w // 2, h // 2, start)
+            with subtests.test(f"{text}/{box}x{box}"):
+                uut.set(box // 2, box // 2, start)
                 uut.brighten()
-                assert uut.get(w // 2, h // 2) == expected
+                assert uut.get(box // 2, box // 2) == expected
 
-        with subtests.test("Black"), caplog.at_level("DEBUG"):
-            uut.set(w, h, TGAColor(0, 0, 0))
+        with subtests.test(f"Black/{box}x{box}"), caplog.at_level("DEBUG"):
+            uut.set(box, box, TGAColor(0, 0, 0))
             uut.brighten()
             assert "all-black" in caplog.text
 
@@ -435,9 +466,6 @@ class TestTGAImage:
         _helper("Tiny Gray", TGAColor(r=2, g=2, b=2), TGAColor(r=255, g=255, b=255))
         _helper("Half Gray", TGAColor(r=128, g=128, b=128), TGAColor(r=255, g=255, b=255))
         _helper("Middling Gray", TGAColor(r=127, g=128, b=127), TGAColor(r=253, g=255, b=253))
-
-        with pytest.raises(OSError):
-            uut.read_tga_file("/abc.tga")
 
     def test_double_flips(self: Self) -> None:
         uut = self.gradient_fill()
