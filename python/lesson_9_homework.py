@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from typing import Final, Self
 
+import numpy as np
+
 import lib.our_gl as our_gl
 from lib.model_v2 import ModelV2
 from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
@@ -24,15 +26,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 
-class PhongNormalMappingShader(our_gl.IShader):
-    model: ModelV2
-    color: TGAColor_t
-    vts: list[vec2]  # Vector texture U, V
-    # These are for reflection stuff:
-    sun_vector_l: vec4  # light direction in eye coordinates
-    diffuse_weight: float
-    specular_shine: int
-
+class Lesson9Shader(our_gl.IShader):
     def __init__(
         self: Self,
         model: ModelV2,
@@ -43,34 +37,64 @@ class PhongNormalMappingShader(our_gl.IShader):
     ) -> None:
         assert 0 <= diffuse_weight <= 1, "Diffuse term weight should be 0..1 inclusive"
 
-        self.model = model
+        self.model: ModelV2 = model
         assert "diffuse" in self.model.ext
         assert "nm" in self.model.ext
         assert "spec" in self.model.ext
-        self.color = TGAColor()
-        self.vts = [vec2(x=0, y=0), vec2(x=0, y=0), vec2(x=0, y=0)]
-        self.sun_vector_l = vec4.from_np(our_gl.model_view @ vec4.from_vec3(sun, w=0)).normalized
-        self.diffuse_weight = diffuse_weight
-        self.specular_shine = specular_shine
+        self.color: TGAColor_t = TGAColor()
+        # The list() wrapping is to keep type checkers happy
+        self.varying_uv = list(
+            vec2.new_zeros(3)
+        )  # triangle uv coordinates, written by the vertex shader, read by the fragment shader
+        self.varying_nrm = list(vec4.new_nans(3))  # normal per vertex to be interpolated by the fragment shader
+        self.tri = list(vec4.new_nans(3))  # Triangle in eye coordinates
+        self.sun_vector_l: vec4 = vec4.from_np(our_gl.model_view @ vec4.from_vec3(sun, w=0)).normalized
+        self.diffuse_weight: float = diffuse_weight
+        self.specular_shine: int = specular_shine
 
     def vertex(self: Self, face: int, vert: int) -> vec4:
         v: Final[vec3] = self.model.vert(face, vert)  # current vertex in object coordinates
         gl_position: Final[vec4] = vec4.from_np(our_gl.model_view @ vec4.from_vec3(v, w=1))
-        self.vts[vert] = self.model.vert_texture(face, vert)  # current texture U,V (as X,Y)
+        self.varying_uv[vert] = self.model.vert_texture(face, vert)  # current texture U,V (as X,Y)
+        self.varying_nrm[vert] = vec4.from_np(our_gl.model_view_IT @ self.model.normal(face, vert))
+        self.tri[vert] = gl_position
         return vec4.from_np(our_gl.perspective @ gl_position)  # in clip coordinates
 
     def fragment(self: Self, bar: list[float]) -> tuple[bool, TGAColor_t]:
         assert len(bar) == 3, f"Invalid {bar=}"
-        # For homework 2, we'll read the model's nm instead of the vn from the model
-        color_sample: Final[vec2] = self.vts[0] * bar[0] + self.vts[1] * bar[1] + self.vts[2] * bar[2]
-        nm_color: Final[TGAColor_t] = self.model.ext_color("nm", color_sample)
-        normal_vector_n: Final[vec3] = vec3(x=nm_color.r / 255, y=nm_color.g / 255, z=nm_color.b / 255).normalized
+        # Our matrix types in trtypes are all square, so for now leave as native lists
+        # (we'll see if this is a bad decision later or not)
+        E_matrix: Final[list[vec4]] = [self.tri[1] - self.tri[0], self.tri[2] - self.tri[0]]
+        U_matrix: Final[list[vec2]] = [self.varying_uv[1] - self.varying_uv[0], self.varying_uv[2] - self.varying_uv[0]]
+        U_matrix_inv: np.ndarray[tuple[int, int], np.dtype[np.float64]]
+        try:
+            U_matrix_inv = np.linalg.inv(U_matrix)
+        except np.linalg.LinAlgError:  # "Singular matrix" because the columns matched
+            U_matrix_inv = np.linalg.pinv(U_matrix)
+        T_matrix: Final[np.ndarray[tuple[int, int], np.dtype[np.float64]]] = U_matrix_inv @ E_matrix
+        D_matrix: Final[list[vec4]] = [
+            vec4.from_np(T_matrix[0]).normalized,  # tangent vector
+            vec4.from_np(T_matrix[1]).normalized,  # bitangent vector
+            (
+                self.varying_nrm[0] * bar[0] + self.varying_nrm[1] * bar[1] + self.varying_nrm[2] * bar[2]
+            ).normalized,  # interpolated normal
+            vec4(x=0, y=0, z=0, w=1),  # Darboux frame
+        ]
+        color_sample: Final[vec2] = (
+            self.varying_uv[0] * bar[0] + self.varying_uv[1] * bar[1] + self.varying_uv[2] * bar[2]
+        )
+        nm_t_color: Final[TGAColor_t] = self.model.ext_color("nm_tangent", color_sample)
+        # CPP: return normalized(vec4{(double)c[2],(double)c[1],(double)c[0],0}*2./255. - vec4{1,1,1,0});
+        nm_t_normal: Final[vec4] = (
+            vec4(x=nm_t_color.r, y=nm_t_color.g, z=nm_t_color.b, w=0) * 2 / 255 - vec4(x=1, y=1, z=1, w=0)
+        ).normalized
+        normal_vector_n: Final[vec4] = vec4.from_np(np.transpose(D_matrix) @ nm_t_normal).normalized
 
         # Get the color from the "diffuse" file
         diff_color: Final[TGAColor_t] = self.model.ext_color("diffuse", color_sample) / 3  # Scale it by 1/3
 
         # Compute 0..1 for diffuse term
-        diffuse_raw: Final[float] = self.sun_vector_l.xyz * normal_vector_n
+        diffuse_raw: Final[float] = self.sun_vector_l * normal_vector_n
         diffuse: Final = max(0, diffuse_raw)
         assert 0 <= diffuse <= 1, f"'{diffuse=}' should be 0..1 inclusive?"
 
@@ -121,7 +145,7 @@ def main() -> int:
             framebuffer = TGAImage(w=width, h=height, bpp=TGAImage.Format.RGB, c=TGAColor(127, 127, 127))
             our_gl.init_zbuffer(width, height)  # New zbuffer per image
             model = ModelV2.from_file(fname)
-            shader = PhongNormalMappingShader(model, sun=sun, specular_shine=35)
+            shader = Lesson9Shader(model, sun=sun, specular_shine=35)
             logger.debug("Rendering %d faces...", len(model.faces))
             for face in range(len(model.faces)):
                 if face and face % 250 == 0:
@@ -133,6 +157,7 @@ def main() -> int:
                 )
                 our_gl.rasterize(clip, shader, framebuffer)  # rasterize the primitive
 
+            framebuffer.brighten()
             framebuffer.write_tga_file(f"{basename}.tga")
             our_gl.z_buffer.to_tga(allow_nan=True, nan_val=0).write_tga_file(f"{basename}_z.tga")
             framebuffer.plot(PLOT)
