@@ -12,7 +12,8 @@ from lib.model_v2 import ModelV2
 from lib.tgaimage import TGAColor, TGAColor_t, TGAImage, black
 from lib.trtypes import Triangle, ZBuffer, vec2, vec3, vec4
 
-PLOT: Final[bool] = True
+PLOT: Final[bool] = False
+DIE_ON_FAILURE: Final[bool] = True
 
 width: Final = 1024
 height: Final = 1024
@@ -144,11 +145,11 @@ def main() -> int:
 
     for fname in find_output.split():
         basename = Path(fname).name[:-4]
-        path_name = fname.split("/")[2]
-        if path_name not in framebuffers:
-            framebuffers[path_name] = TGAImage(w=width, h=height, bpp=TGAImage.Format.RGB, c=black)
         try:
             logger.debug("Processing %s...", basename)
+            path_name = fname.split("/")[2]
+            if path_name not in framebuffers:
+                framebuffers[path_name] = TGAImage(w=width, h=height, bpp=TGAImage.Format.RGB, c=black)
             framebuffer = framebuffers[path_name]
             if path_name not in zbuffers:
                 our_gl.init_zbuffer(width, height)  # New zbuffer per image
@@ -175,8 +176,9 @@ def main() -> int:
             zbuffers[path_name] = our_gl.z_buffer
 
         except Exception as err:
-            print(f"Could not process {fname}: {err}")
-            raise RuntimeError from err
+            logger.error("Could not process %s: %s", fname, err)
+            if DIE_ON_FAILURE:
+                raise RuntimeError from err
 
     return 0
 
