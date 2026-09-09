@@ -123,10 +123,10 @@ def rasterize(
             if any(v < 0 for v in bc):
                 continue  # negative barycentric coordinate => the pixel is outside the triangle
             z: float = (bc @ [ndc[0].z, ndc[1].z, ndc[2].z]).item()
-            if z <= z_buffer.vals[x][y]:  # Behind what we've already drawn
+            # Make a claim to a ZBuffer value
+            if not z_buffer.try_set(x, y, z):  # Behind what we've already drawn
                 continue
             discard, color = shader.fragment(bc.tolist())
             if discard:
                 continue
-            z_buffer.vals[x][y] = z
             framebuffer.set(x, y, color)

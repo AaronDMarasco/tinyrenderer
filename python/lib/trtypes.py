@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import threading
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -39,9 +40,19 @@ class ZBuffer:
     """Raw list of Z values, used in later assignments"""
 
     vals: list[list[float]] = field(init=False)
+    _lock: threading.Lock = field(init=False)
 
     def __init__(self: Self, *, width: int, height: int) -> None:
         self.vals = cast(list[list[float]], numpy.full((width, height), numpy.nan, dtype=float).tolist())
+        self._lock = threading.Lock()
+
+    def try_set(self: Self, x: int, y: int, val: float) -> bool:
+        """Atomic-ish set and get if yours was written"""
+        with self._lock:
+            if val <= self.vals[x][y]:
+                return False
+            self.vals[x][y] = val
+            return True
 
     def to_tga(self: Self, *, allow_nan: bool = True, nan_val: int = -1000) -> TGAImage:
         """If allow_nan is not set, any unset values will explode"""

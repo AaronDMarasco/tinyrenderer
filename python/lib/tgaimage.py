@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import FrozenInstanceError, dataclass, field
 from enum import IntEnum
 from functools import cache, total_ordering
@@ -340,6 +341,7 @@ class TGAImage:
         self.was_hflipped = False
         self.was_vflipped = False
         self.was_rle = False
+        self._lock = threading.Lock()
 
     @property
     def rgba(self: Self) -> npt.NDArray[np.uint8]:
@@ -453,7 +455,8 @@ class TGAImage:
         if not (0 <= x < self.width) or not (0 <= y < self.height):
             logger.warning("TGAImage.set(%s, %s) invalid: Image is %d x %d", x, y, self.width, self.height)
             return
-        self.npdata[y, x] = c
+        with self._lock:
+            self.npdata[y, x] = c
 
     def load_rle_data(self: Self, in_: bytes) -> bytes:
         """Decompresses a TGA RLE stream"""
