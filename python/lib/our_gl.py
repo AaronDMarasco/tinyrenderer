@@ -83,7 +83,7 @@ def init_viewport(x: int, y: int, width: int, height: int) -> None:
 
 def init_zbuffer(width: int, height: int) -> None:
     global z_buffer
-    z_buffer = ZBuffer(width=width, height=height)
+    z_buffer = ZBuffer(width=width, height=height)  # CPP inits to -1000
 
 
 def rasterize(
@@ -115,18 +115,23 @@ def rasterize(
     bb_min_y: Final[int] = int(max(0, min(screen[0].y, screen[1].y, screen[2].y)))
     bb_max_y: Final[int] = int(min(framebuffer.height - 1, max(screen[0].y, screen[1].y, screen[2].y)))
 
+    ABC_invert_transpose = np.linalg.inv(ABC.T)
+
     for x in range(bb_min_x, bb_max_x + 1):
         for y in range(bb_min_y, bb_max_y + 1):
-            ABC_invert_transpose = np.linalg.inv(ABC.T)
             # bc = barycentric coordinates of {x,y} w.r.t the triangle
-            bc = ABC_invert_transpose @ [x, y, 1]
-            if any(v < 0 for v in bc):
+            bc_screen = vec3.from_np(ABC_invert_transpose @ [x, y, 1])
+            if any(v < 0 for v in bc_screen.array):
                 continue  # negative barycentric coordinate => the pixel is outside the triangle
-            z: float = (bc @ [ndc[0].z, ndc[1].z, ndc[2].z]).item()
+            # See check https://github.com/ssloy/tinyrenderer/wiki/Technical-difficulties-linear-interpolation-with-perspective-deformations
+            # for bc_clip
+            bc_clip_raw: tuple[float, ...] = (bc_screen.x / clip[0].w, bc_screen.y / clip[1].w, bc_screen.z / clip[2].w)
+            bc_clip: vec3 = vec3(*bc_clip_raw) / sum(bc_clip_raw)
+            z: float = (bc_screen.np @ [ndc[0].z, ndc[1].z, ndc[2].z]).item()
             # Make a claim to a ZBuffer value
             if not z_buffer.try_set(x, y, z):  # Behind what we've already drawn
                 continue
-            discard, color = shader.fragment(bc.tolist())
+            discard, color = shader.fragment(bc_clip.array)
             if discard:
                 continue
             framebuffer.set(x, y, color)
