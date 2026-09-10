@@ -142,12 +142,6 @@ class _VectorBase(ABC):
     def from_np(array: npt.NDArray[numpy.float64]) -> _VectorBase:
         """Create a vector from a numpy array"""
 
-    def cross(self: Self, other: Self) -> Self:
-        """Cross-product of two vectors"""
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        return cast(Self, self.from_np(numpy.cross(self.np, other.np)))
-
     @abstractmethod
     def __add__(self: Self, other: Self) -> Self: ...
 
@@ -219,6 +213,12 @@ class vec2(_VectorBase):
 @dataclass(frozen=True, slots=True)
 class vec3(_VectorBase):
     z: float
+
+    def cross(self: Self, other: vec3) -> vec3:
+        """Cross-product of two vectors"""
+        if not isinstance(other, vec3):
+            return NotImplemented
+        return cast(Self, self.from_np(numpy.cross(self, other)))
 
     @property
     def array(self: Self) -> list[float]:

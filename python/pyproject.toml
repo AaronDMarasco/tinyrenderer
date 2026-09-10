@@ -14,9 +14,25 @@ dev = [
     "icecream>=2.2.0",
     "mypy>=2.3.0",
     "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
     "ruff>=0.16.1",
     "snakeviz>=2.2.2",
     "ssort>=0.17.0",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    "return NotImplemented",
+]
+skip_empty = true
+sort = "-cover"
+
+[tool.coverage.run]
+branch = true
+omit = [
+    "model*.py",
+    "our_gl.py",
+    "*/tests/*",
 ]
 
 [tool.ruff]

@@ -10,12 +10,23 @@ from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 from ..tgaimage import TGAColor
-from ..trtypes import Matrix2f, Matrix3f, Matrix4f, MatrixLike, ZBuffer, _VectorBase, vec2, vec3, vec4
+from ..trtypes import Matrix2f, Matrix3f, Matrix4f, MatrixLike, ZBuffer, _VectorBase, empty_matrix, vec2, vec3, vec4
 
-# positive_integers  = st.integers(min_value=0, max_value=2**31 - 1)
 reasonable_integers = st.integers(min_value=-(2**31), max_value=2**31 - 1)
+reasonable_floats = st.floats(allow_nan=False, allow_infinity=False, width=32)
 
 type VecParam = tuple[int, type[_VectorBase]]
+
+
+class TestMatrix:
+    @pytest.mark.parametrize("matrix_size", range(1, 6))
+    def test_empty_matrix(self: Self, matrix_size: int) -> None:
+        if matrix_size in {1, 5}:
+            with pytest.raises(ValueError):
+                _ = empty_matrix(matrix_size)  # type: ignore[call-overload]
+            return
+        uut = empty_matrix(matrix_size)  # type: ignore[call-overload]
+        assert sum(v for v in uut.ravel()) == 0
 
 
 @pytest.mark.parametrize("vec_param", [(2, vec2), (3, vec3), (4, vec4)], ids=["vec2", "vec3", "vec4"])
@@ -65,10 +76,10 @@ class TestVector:
         with pytest.raises(AssertionError):
             class_.from_np(np.array(vec_in[:width], dtype=int))
 
-    @given(in_data=st.lists(st.floats(allow_nan=False, allow_infinity=False), min_size=8, max_size=8))
+    @given(in_data=st.lists(reasonable_floats, min_size=8, max_size=8))
     def test_add(self: Self, in_data: list[float], vec_param: VecParam) -> None:
         width, class_ = vec_param
-        uut1 = class_(*in_data[0:width])
+        uut1 = class_(*in_data[:width])
         uut2 = class_(*in_data[width : 2 * width])
 
         res = uut1 + uut2
@@ -81,10 +92,10 @@ class TestVector:
             assert isinstance(res, vec4)
             assert res.w == pytest.approx(in_data[3] + in_data[width + 3])
 
-    @given(in_data=st.lists(st.floats(allow_nan=False, allow_infinity=False), min_size=8, max_size=8))
+    @given(in_data=st.lists(reasonable_floats, min_size=8, max_size=8))
     def test_sub(self: Self, in_data: list[float], vec_param: VecParam) -> None:
         width, class_ = vec_param
-        uut1 = class_(*in_data[0:width])
+        uut1 = class_(*in_data[:width])
         uut2 = class_(*in_data[width : 2 * width])
 
         res = uut1 - uut2
@@ -97,10 +108,34 @@ class TestVector:
             assert isinstance(res, vec4)
             assert res.w == pytest.approx(in_data[3] - in_data[width + 3])
 
-    @given(in_data=st.lists(st.floats(allow_nan=False, allow_infinity=False, width=32), min_size=8, max_size=8))
+    @given(in_data=st.lists(reasonable_floats, min_size=5, max_size=5).filter(lambda lst: lst[-1] != 0))
+    @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_scaling(self: Self, *, in_data: list[float], subtests: pytest.Subtests, vec_param: VecParam) -> None:
+        width, class_ = vec_param
+        uut = class_(*in_data[:width])
+        scaling = in_data[-1]
+        with subtests.test(f"Multiply/{scaling}"):
+            tval = uut * scaling
+            assert tval.array == pytest.approx([v * scaling for v in in_data[:width]])
+        with subtests.test(f"Divide/{scaling}"):
+            tval = uut / scaling
+            assert tval.array == pytest.approx([v / scaling for v in in_data[:width]])
+
+    @given(in_data=st.lists(reasonable_floats, min_size=8, max_size=8))
+    def test_cross_product(self: Self, in_data: list[float], vec_param: VecParam) -> None:
+        width, class_ = vec_param
+        if width != 3:
+            pytest.skip("Cross-product only valid for 3-dimensional vectors")
+        assert class_ is vec3
+        uut1 = class_(*in_data[:width])
+        uut2 = class_(*in_data[width : 2 * width])
+        expected = np.cross(uut1, uut2)  # Also exercises __array__ calls
+        assert uut1.cross(uut2).array == pytest.approx(expected)
+
+    @given(in_data=st.lists(reasonable_floats, min_size=8, max_size=8))
     def test_dot_product(self: Self, in_data: list[float], vec_param: VecParam) -> None:
         width, class_ = vec_param
-        uut1 = class_(*in_data[0:width])
+        uut1 = class_(*in_data[:width])
         uut2 = class_(*in_data[width : 2 * width])
 
         res = uut1 * uut2
@@ -115,11 +150,11 @@ class TestVector:
             expected += uut1.w * uut2.w
         assert res == pytest.approx(expected)
 
-    @given(in_data=st.lists(st.floats(allow_nan=False, allow_infinity=False, width=32), min_size=4, max_size=4))
+    @given(in_data=st.lists(reasonable_floats, min_size=4, max_size=4))
     def test_normalize(self: Self, in_data: list[float], vec_param: VecParam) -> None:
         # Compares the CPP way to numpy and ensures they're the same
         width, class_ = vec_param
-        uut = class_(*in_data[0:width])
+        uut = class_(*in_data[:width])
 
         try:
             cpp = (uut / uut.norm).array
@@ -129,18 +164,25 @@ class TestVector:
         for i in range(width):
             assert py[i] == pytest.approx(cpp[i])
 
+    def test_normalize_zero(self: Self, vec_param: VecParam) -> None:
+        # Special case of all-zero
+        width, class_ = vec_param
+        zeros = [0] * width
+        uut = class_(*zeros)
+        assert uut.normalized.array == zeros
+
     # vec * vec is tested elsewhere in test_dot_product
 
     # With vec4, 1 UUT would be 4 data values plus a 4x4 matrix of 16 = 20 values to choose from
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    @given(in_data=st.lists(st.floats(allow_nan=False, allow_infinity=False, width=32), min_size=20, max_size=20))
+    @given(in_data=st.lists(reasonable_floats, min_size=20, max_size=20))
     def test_mult_cpp_vec_matrix(
         self: Self, in_data: list[float], vec_param: VecParam, request: pytest.FixtureRequest
     ) -> None:
         """Compare to C++ multiplication operations geometry.h"""
         this_test = request.node.callspec.id
         width, class_ = vec_param
-        uut = class_(*in_data[0:width])
+        uut = class_(*in_data[:width])
 
         _CPP = """
 return (mat<1,nrows>{{lhs}}*rhs)[0]
@@ -192,7 +234,7 @@ template<int R1,int C1,int C2>mat<R1,C2> operator*(const mat<R1,C1>& lhs, const 
 
     # With vec4, two 4x4 matrices of 16 = 32 values to choose from
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    @given(in_data=st.lists(st.floats(allow_nan=False, allow_infinity=False, width=32), min_size=32, max_size=32))
+    @given(in_data=st.lists(reasonable_floats, min_size=32, max_size=32))
     def test_mult_cpp_matrix_matrix(
         self: Self, in_data: list[float], vec_param: VecParam, request: pytest.FixtureRequest
     ) -> None:
@@ -265,6 +307,22 @@ template<int R1,int C1,int C2>mat<R1,C2> operator*(const mat<R1,C1>& lhs, const 
             for c in range(width):
                 assert expected[r][c] == pytest.approx(res[r][c])
 
+    def test_new_nan(self, vec_param: VecParam) -> None:
+        _, class_ = vec_param
+        uut1 = class_.new_nan()
+        uut2 = class_.new_nan()
+        assert all(v is nan for v in uut1.array)
+        assert uut1 is not uut2
+
+    @given(list_len=st.integers(min_value=1, max_value=1000))
+    def test_new_nans(self, *, list_len: int, vec_param: VecParam) -> None:
+        _, class_ = vec_param
+        uut = class_.new_nans(list_len)
+        for i in range(1, list_len):
+            assert uut[0] is not uut[i]
+        for val in uut:
+            assert all(v is nan for v in val.array)
+
     def test_new_zero(self, vec_param: VecParam) -> None:
         _, class_ = vec_param
         uut1 = class_.new_zero()
@@ -273,12 +331,31 @@ template<int R1,int C1,int C2>mat<R1,C2> operator*(const mat<R1,C1>& lhs, const 
         assert uut1 is not uut2
         assert sum(uut1.array) == sum(uut2.array) == 0
 
-    def test_new_nan(self, vec_param: VecParam) -> None:
+    @given(list_len=st.integers(min_value=1, max_value=1000))
+    def test_new_zeros(self, *, list_len: int, vec_param: VecParam) -> None:
         _, class_ = vec_param
-        uut1 = class_.new_nan()
-        uut2 = class_.new_nan()
-        assert all(v is nan for v in uut1.array)
-        assert uut1 is not uut2
+        uut = class_.new_zeros(list_len)
+        for i in range(1, list_len):
+            assert uut[0] == uut[i]
+            assert uut[0] is not uut[i]
+        for v in uut:
+            assert sum(v.array) == 0
+
+    @given(in_data=st.lists(reasonable_floats, min_size=4, max_size=4))
+    def test_xyz(self, *, in_data: list[float], vec_param: VecParam) -> None:
+        width, class_ = vec_param
+        uut = class_(*in_data[:width])
+        assert uut.x == in_data[0]  # Silly, but doesn't make us need to skip test if vec2
+        if width >= 3:
+            assert isinstance(uut, (vec3, vec4))
+            xy = uut.xy
+            assert isinstance(xy, vec2)
+            assert xy == vec2(*in_data[:2])
+        if width == 4:
+            assert isinstance(uut, vec4)
+            xyz = uut.xyz
+            assert isinstance(xyz, vec3)
+            assert xyz == vec3(*in_data[:3])
 
 
 class TestZBuffer:
@@ -289,6 +366,12 @@ class TestZBuffer:
     def test_dimensions(self: Self) -> None:
         uut = ZBuffer(width=20, height=30)
         assert isnan(uut.vals[19][29])
+
+    def test_locks(self: Self) -> None:
+        uut = ZBuffer(width=20, height=30)
+        assert uut.try_set(19, 17, 13.4)  # New value good
+        assert not uut.try_set(19, 17, 13.4)  # Repeated value bad
+        assert uut.vals[19][17] == pytest.approx(13.4)
 
     @pytest.mark.parametrize("allow_nan", [True, False], ids=["allow_nan=True", "allow_nan=False"])
     def test_to_tga_1x1(self: Self, allow_nan: bool) -> None:
