@@ -7,7 +7,7 @@ from typing import Final, Self
 
 import numpy as np
 
-import lib.our_gl as our_gl
+from lib import our_gl
 from lib.model_v2 import ModelV2
 from lib.tgaimage import TGAColor, TGAColor_t, TGAImage, black
 from lib.trtypes import Triangle, ZBuffer, vec2, vec3, vec4
@@ -176,7 +176,7 @@ def main() -> int:
             zbuffers[path_name] = our_gl.z_buffer
 
         except Exception as err:
-            logger.error("Could not process %s: %s", fname, err)
+            logger.exception("Could not process %s", fname)
             if DIE_ON_FAILURE:
                 raise RuntimeError from err
 

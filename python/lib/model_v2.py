@@ -75,15 +75,14 @@ class ModelV2:
     # Don't allow anybody else to (easily) create this class:
     _guard: InitVar[Any] = field(default=None)
 
-    def __post_init__(self: Self, _guard: Any) -> None:
+    def __post_init__(self: Self, _guard: object) -> None:
         if _guard is not _SENTINEL:
             err_msg = "Only call ModelV2.from_file() method to get a ModelV2"
             raise TypeError(err_msg)
 
     @property
     def groups(self: Self) -> set[str | None]:
-        groups = {f.group for f in self.faces}
-        return groups
+        return {f.group for f in self.faces}
 
     def add_comment(self: Self, comment: str) -> None:
         for c in comment[1:].lstrip().split(","):  # Some are doubled up; remove # and split on ,
@@ -164,21 +163,21 @@ class ModelV2:
         return img.get(round(color_sample_uv[0]), round(color_sample_uv[1]))
 
     @staticmethod
-    def from_file(infile: str | Path) -> ModelV2:
+    def from_file(infile: str | Path) -> ModelV2:  # ruff: ignore[too-many-branches]
         res = ModelV2(_guard=_SENTINEL)
         current_group = None
         current_smooth = None
-        with open(infile, encoding="utf-8") as ifile:
+        with Path(infile).open(encoding="utf-8") as ifile:
             for line_no, line in enumerate(ifile, 1):
                 match line:
-                    case _ if line.strip() == "":
+                    case _ if not line.strip():
                         # Blank line
                         pass
                     case _ if line.startswith("#"):
                         res.add_comment(line.rstrip())
                     case _ if m := GROUP_RE.match(line):
                         # A blank seems to clear it (assumed)
-                        if m[1].strip() == "":
+                        if not m[1].strip():
                             current_group = None
                             current_smooth = None
                         else:

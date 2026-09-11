@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Final, Self
+from typing import TYPE_CHECKING, Final, Self
 
 import numpy as np
 
-from .tgaimage import TGAColor_t, TGAImage
 from .trtypes import Matrix3f, Matrix4f, Triangle, ZBuffer, empty_matrix, vec2, vec3, vec4
+
+if TYPE_CHECKING:
+    from .tgaimage import TGAColor_t, TGAImage
 
 # Global module-level state variables (ugh):
 model_view: Matrix4f = empty_matrix(4)
@@ -101,11 +103,13 @@ def rasterize(
         vec4.from_np(view_port @ ndc[1]).xy,
         vec4.from_np(view_port @ ndc[2]).xy,
     ]  # screen coordinates
-    ABC: Final[Matrix3f] = np.array([
-        [screen[0].x, screen[0].y, 1.0],
-        [screen[1].x, screen[1].y, 1.0],
-        [screen[2].x, screen[2].y, 1.0],
-    ])
+    ABC: Final[Matrix3f] = np.array(  # ruff: ignore[non-lowercase-variable-in-function]
+        [
+            [screen[0].x, screen[0].y, 1.0],
+            [screen[1].x, screen[1].y, 1.0],
+            [screen[2].x, screen[2].y, 1.0],
+        ]
+    )
     if np.linalg.det(ABC) < 1:
         return  # Early return for backface culling + discarding triangles that cover less than a pixel
 
@@ -115,7 +119,7 @@ def rasterize(
     bb_min_y: Final[int] = int(max(0, min(screen[0].y, screen[1].y, screen[2].y)))
     bb_max_y: Final[int] = int(min(framebuffer.height - 1, max(screen[0].y, screen[1].y, screen[2].y)))
 
-    ABC_invert_transpose = np.linalg.inv(ABC.T)
+    ABC_invert_transpose = np.linalg.inv(ABC.T)  # ruff: ignore[non-lowercase-variable-in-function]
 
     for x in range(bb_min_x, bb_max_x + 1):
         for y in range(bb_min_y, bb_max_y + 1):

@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Sequence
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 import numpy as np
 
 from lib.model import Model
 from lib.tgaimage import TGAColor_t, TGAImage
 from lib.trtypes import Matrix3f, Matrix4f, ZBuffer, vec2, vec3, vec4
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 width: Final = 800
 height: Final = 800

@@ -8,7 +8,7 @@ from typing import Final, Self
 
 import numpy as np
 
-import lib.our_gl as our_gl
+from lib import our_gl
 from lib.model_v2 import ModelV2
 from lib.tgaimage import TGAColor, TGAColor_t, TGAImage, black
 from lib.trtypes import Triangle, ZBuffer, vec2, vec3, vec4
@@ -159,7 +159,7 @@ def main() -> int:
             model = ModelV2.from_file(fname)
             logger.debug("Rendering %d faces...", len(model.faces))
 
-            def render(face: int, framebuffer=framebuffer, model=model) -> None:
+            def render(face: int, framebuffer: TGAImage = framebuffer, model: ModelV2 = model) -> None:
                 shader: Final = Lesson9Shader(model, sun=sun, specular_shine=35)
                 clip: Final[Triangle] = (  # assemble the primitive
                     shader.vertex(face, 0),
@@ -180,7 +180,7 @@ def main() -> int:
             zbuffers[path_name] = our_gl.z_buffer
 
         except Exception as err:
-            logger.error("Could not process %s: %s", fname, err)
+            logger.exception("Could not process %s", fname)
             if DIE_ON_FAILURE:
                 raise RuntimeError from err
 

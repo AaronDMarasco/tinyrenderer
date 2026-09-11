@@ -1,7 +1,6 @@
-#!/bin/env python
 from __future__ import annotations
 
-from math import isnan, nan
+from math import isnan
 from typing import Self
 
 import numpy as np
@@ -9,8 +8,8 @@ import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
-from ..tgaimage import TGAColor
-from ..trtypes import Matrix2f, Matrix3f, Matrix4f, MatrixLike, ZBuffer, _VectorBase, empty_matrix, vec2, vec3, vec4
+from lib.tgaimage import TGAColor
+from lib.trtypes import Matrix2f, Matrix3f, Matrix4f, MatrixLike, ZBuffer, _VectorBase, empty_matrix, vec2, vec3, vec4
 
 reasonable_integers = st.integers(min_value=-(2**31), max_value=2**31 - 1)
 reasonable_floats = st.floats(allow_nan=False, allow_infinity=False, width=32)
@@ -41,17 +40,19 @@ class TestVector:
         assert isinstance(uut.np, np.ndarray)
         assert uut.np.shape == (width,)
         assert uut.np.dtype == float
-        assert uut == uut
+        assert uut.array == uut2.array
         assert isinstance(uut2.x, float)  # Not an np type
+        assert uut2.x == vec_in[0]
         assert isinstance(uut2.y, float)
+        assert uut2.y == vec_in[1]
         if width >= 3:
             assert isinstance(uut2, (vec3, vec4))
             assert isinstance(uut2.z, float)
+            assert uut2.z == vec_in[2]
         if width >= 4:
             assert isinstance(uut2, vec4)
             assert isinstance(uut2.w, float)
-
-        assert uut2.y == vec_in[1]
+            assert uut2.w == vec_in[3]
 
     def test_from_numpy_bad_type(self: Self, vec_param: VecParam) -> None:
         width, class_ = vec_param
@@ -184,6 +185,7 @@ class TestVector:
         width, class_ = vec_param
         uut = class_(*in_data[:width])
 
+        # ruff: ignore[non-lowercase-variable-in-function]
         _CPP = """
 return (mat<1,nrows>{{lhs}}*rhs)[0]
             which calls matrix operator*:
@@ -242,6 +244,7 @@ template<int R1,int C1,int C2>mat<R1,C2> operator*(const mat<R1,C1>& lhs, const 
         this_test = request.node.callspec.id
         width, _ = vec_param
 
+        # ruff: ignore[non-lowercase-variable-in-function]
         _CPP = """
             R1 = C1 = C2 = vector size (should we test non-uniform???)
 template<int R1,int C1,int C2>mat<R1,C2> operator*(const mat<R1,C1>& lhs, const mat<C1,C2>& rhs) {
@@ -311,7 +314,7 @@ template<int R1,int C1,int C2>mat<R1,C2> operator*(const mat<R1,C1>& lhs, const 
         _, class_ = vec_param
         uut1 = class_.new_nan()
         uut2 = class_.new_nan()
-        assert all(v is nan for v in uut1.array)
+        assert all(isnan(v) for v in uut1.array)
         assert uut1 is not uut2
 
     @given(list_len=st.integers(min_value=1, max_value=1000))
@@ -321,7 +324,7 @@ template<int R1,int C1,int C2>mat<R1,C2> operator*(const mat<R1,C1>& lhs, const 
         for i in range(1, list_len):
             assert uut[0] is not uut[i]
         for val in uut:
-            assert all(v is nan for v in val.array)
+            assert all(isnan(v) for v in val.array)
 
     def test_new_zero(self, vec_param: VecParam) -> None:
         _, class_ = vec_param

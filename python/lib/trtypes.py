@@ -5,14 +5,16 @@ from __future__ import annotations
 import math
 import threading
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Final, Literal, Self, cast, overload
+from typing import TYPE_CHECKING, Any, Final, Literal, Self, cast, overload, override
 
-import numpy  # Import as np conflicts with property named np
+import numpy  # ruff: ignore[unconventional-import-alias]  # Import as np conflicts with property named np
 import numpy.typing as npt
 
 from .tgaimage import TGAColor, TGAImage
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 type Matrix2f = numpy.ndarray[tuple[Literal[2], Literal[2]], numpy.dtype[numpy.float64]]
 type Matrix3f = numpy.ndarray[tuple[Literal[3], Literal[3]], numpy.dtype[numpy.float64]]
@@ -32,7 +34,7 @@ def empty_matrix(rc: int, /) -> MatrixLike:
     if not (2 <= rc <= 4):
         err_msg = f"Couldn't determine type {rc}!"
         raise ValueError(err_msg)
-    return cast(MatrixLike, numpy.zeros(shape=(rc, rc), dtype=float))
+    return cast("MatrixLike", numpy.zeros(shape=(rc, rc), dtype=float))
 
 
 @dataclass(slots=True)
@@ -43,7 +45,10 @@ class ZBuffer:
     _lock: threading.Lock = field(init=False)
 
     def __init__(self: Self, *, width: int, height: int) -> None:
-        self.vals = cast(list[list[float]], numpy.full((width, height), numpy.nan, dtype=float).tolist())
+        self.vals = cast(
+            "list[list[float]]",
+            numpy.full((width, height), numpy.nan, dtype=float).tolist(),
+        )
         self._lock = threading.Lock()
 
     def try_set(self: Self, x: int, y: int, val: float) -> bool:
@@ -71,8 +76,8 @@ class ZBuffer:
         # Otherwise, create scaled image
         fb = TGAImage(w=width, h=height, bpp=1)
         normalized = (nparray - min_val) * 255 / (max_val - min_val)
-        for x in range(0, width):
-            for y in range(0, height):
+        for x in range(width):
+            for y in range(height):
                 fb.set(x, y, TGAColor(round(normalized[x, y])))
         return fb
 
@@ -124,15 +129,17 @@ class _VectorBase(ABC):
             if all(x == 0 for x in self.array):
                 return self
             raise ZeroDivisionError
-        return cast(Self, self.from_np(self.np / denom))
+        return cast("Self", self.from_np(self.np / denom))
 
     @property
     def np(self: Self) -> npt.NDArray[numpy.float64]:
         """The numpy representation of this 'vector'"""
         return numpy.array(self.array, dtype=float)
 
-    def __array__(
-        self: Self, dtype: npt.DTypeLike | None = None, copy: bool | None = None
+    def __array__(  # ruff: ignore[bad-dunder-method-name]
+        self: Self,
+        dtype: npt.DTypeLike | None = None,
+        copy: bool | None = None,
     ) -> npt.NDArray[numpy.float64]:
         # This allows numpy to treat us as "native" data without always calling vec.np
         return numpy.array(self.array, dtype=dtype, copy=copy)
@@ -149,49 +156,55 @@ class _VectorBase(ABC):
     def __sub__(self: Self, other: Self) -> Self: ...
 
     @overload
-    def __mul__(self: Self, other: int | float) -> Self: ...
+    def __mul__(self: Self, other: float) -> Self: ...
     @overload
     def __mul__(self: Self, other: Self) -> float: ...
 
-    def __mul__(self: Self, other: Any) -> Any:
+    def __mul__(self: Self, other: object) -> Any:
         """Dot product or scaling"""
         if isinstance(other, (int, float, numpy.integer, numpy.floating)):
-            return cast(Self, self.from_np(other * self.np))
+            return cast("Self", self.from_np(other * self.np))
         if not isinstance(other, _VectorBase):
             return NotImplemented
         return numpy.dot(self.array, other.array)
 
-    def __truediv__(self: Self, other: int | float) -> Self:
+    def __truediv__(self: Self, other: float) -> Self:
         """Scaling"""
         if isinstance(other, (int, float, numpy.integer, numpy.floating)):
             if other == 0:
                 raise ZeroDivisionError
-            return cast(Self, self.from_np(self.np / other))
+            return cast("Self", self.from_np(self.np / other))
         return NotImplemented
 
 
 @dataclass(frozen=True, slots=True)
-class vec2(_VectorBase):
+class vec2(_VectorBase):  # ruff: ignore[invalid-class-name]
+    @override
     @property
     def array(self: Self) -> list[float]:
         return [self.x, self.y]
 
+    @override
     @staticmethod
     def new_zero() -> vec2:
         return vec2(x=0, y=0)
 
+    @override
     @staticmethod
     def new_nan() -> vec2:
         return vec2(x=math.nan, y=math.nan)
 
+    @override
     @staticmethod
     def new_zeros(count: int) -> Sequence[vec2]:
         return [vec2.new_zero() for _ in range(count)]
 
+    @override
     @staticmethod
     def new_nans(count: int) -> Sequence[vec2]:
         return [vec2.new_nan() for _ in range(count)]
 
+    @override
     @staticmethod
     def from_np(array: npt.NDArray[numpy.float64]) -> vec2:
         assert isinstance(array, numpy.ndarray)
@@ -211,35 +224,41 @@ class vec2(_VectorBase):
 
 
 @dataclass(frozen=True, slots=True)
-class vec3(_VectorBase):
+class vec3(_VectorBase):  # ruff: ignore[invalid-class-name]
     z: float
 
     def cross(self: Self, other: vec3) -> vec3:
         """Cross-product of two vectors"""
         if not isinstance(other, vec3):
             return NotImplemented
-        return cast(Self, self.from_np(numpy.cross(self, other)))
+        return cast("Self", self.from_np(numpy.cross(self, other)))
 
+    @override
     @property
     def array(self: Self) -> list[float]:
         return [self.x, self.y, self.z]
 
+    @override
     @staticmethod
     def new_zero() -> vec3:
         return vec3(x=0, y=0, z=0)
 
+    @override
     @staticmethod
     def new_nan() -> vec3:
         return vec3(x=math.nan, y=math.nan, z=math.nan)
 
+    @override
     @staticmethod
     def new_zeros(count: int) -> Sequence[vec3]:
         return [vec3.new_zero() for _ in range(count)]
 
+    @override
     @staticmethod
     def new_nans(count: int) -> Sequence[vec3]:
         return [vec3.new_nan() for _ in range(count)]
 
+    @override
     @staticmethod
     def from_np(array: npt.NDArray[numpy.float64]) -> vec3:
         assert isinstance(array, numpy.ndarray)
@@ -263,29 +282,35 @@ class vec3(_VectorBase):
 
 
 @dataclass(frozen=True, slots=True)
-class vec4(vec3):
+class vec4(vec3):  # ruff: ignore[invalid-class-name]
     w: float
 
+    @override
     @property
     def array(self: Self) -> list[float]:
         return [self.x, self.y, self.z, self.w]
 
+    @override
     @staticmethod
     def new_zero() -> vec4:
         return vec4(x=0, y=0, z=0, w=0)
 
+    @override
     @staticmethod
     def new_nan() -> vec4:
         return vec4(x=math.nan, y=math.nan, z=math.nan, w=math.nan)
 
+    @override
     @staticmethod
     def new_zeros(count: int) -> Sequence[vec4]:
         return [vec4.new_zero() for _ in range(count)]
 
+    @override
     @staticmethod
     def new_nans(count: int) -> Sequence[vec4]:
         return [vec4.new_nan() for _ in range(count)]
 
+    @override
     @staticmethod
     def from_np(array: npt.NDArray[numpy.float64]) -> vec4:
         assert isinstance(array, numpy.ndarray)

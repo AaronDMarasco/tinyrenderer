@@ -37,7 +37,9 @@ def triangle_barycentric_lesson_3_homework(
             color1 = round(alpha * 255)
             color2 = round(beta * 255)
             color3 = round(gamma * 255)
-            assert color1 <= 255 and color2 <= 255 and color3 <= 255, f"Bad {color1=} {color2=} {color3=}"
+            assert color1 <= 255, f"Bad {color1=} {color2=} {color3=}"
+            assert color2 <= 255, f"Bad {color1=} {color2=} {color3=}"
+            assert color3 <= 255, f"Bad {color1=} {color2=} {color3=}"
             if alpha <= 0.1 or beta <= 0.1 or gamma <= 0.1:
                 framebuffer.set(x, y, TGAColor(color1, color2, color3))
 

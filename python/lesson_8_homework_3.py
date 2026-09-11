@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import Final, Self
 
-import lib.our_gl as our_gl
+from lib import our_gl
 from lib.model_v2 import ModelV2
 from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
 from lib.trtypes import Triangle, vec2, vec3, vec4

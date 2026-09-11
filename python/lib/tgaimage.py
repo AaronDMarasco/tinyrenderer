@@ -10,12 +10,15 @@ from functools import cache, total_ordering
 from io import BytesIO
 from itertools import batched
 from pathlib import Path
-from typing import Any, Final, Self, TypeVar
+from typing import TYPE_CHECKING, Final, Self, TypeVar
 from warnings import warn
 
 import numpy as np
 import numpy.typing as npt
 from numpy import dtype
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
 
 try:
     err: ImportError | None = None
@@ -37,7 +40,7 @@ _SENTINEL = object()  # Stop any direct calls to TGAColor_t
 
 
 # Utility from itertools documentation
-def _grouper(iterable, n):
+def _grouper(iterable: Iterable, n: int) -> Iterator:
     """Collect data into non-overlapping fixed-length chunks or blocks."""
     iterators = [iter(iterable)] * n
     return zip(*iterators, strict=True)
@@ -83,7 +86,7 @@ class TGAColor_t:
         a: int | None = None,
         *,
         bpp: uint8_t | None = None,
-        _guard: Any | None = None,
+        _guard: object | None = None,
     ) -> None:
         # Cached responses:
         self._byte_data = None  # __bytes__
@@ -94,9 +97,11 @@ class TGAColor_t:
             raise TypeError(err_msg)
 
         if bpp is None:
-            raise ValueError("BPP shenanigans? Wrappers should have set this!")
+            msg = "BPP shenanigans? Wrappers should have set this!"
+            raise ValueError(msg)
         if not (1 <= bpp <= 4):
-            raise ValueError(f"Invalid BPP={bpp}!")
+            msg = f"Invalid BPP={bpp}!"
+            raise ValueError(msg)
 
         # I hate to ignore type checking, but we ensure right after that it will not have None...
         self._data = (b, g, r, a)[:bpp]  # type: ignore[assignment]
@@ -181,18 +186,18 @@ class TGAColor_t:
     def __setitem__(self: Self, idx: int, val: uint8_t) -> None:
         raise FrozenInstanceError
 
-    def __mul__(self: Self, other: int | float) -> TGAColor_t:
+    def __mul__(self: Self, other: float) -> TGAColor_t:
         """Scaling"""
         if not isinstance(other, (int, float, np.integer, np.floating)):
             return NotImplemented
         res = b"".join(round(v * other).to_bytes() for v in self._data)
         return TGAColor_from_raw(res, bpp=self.bytespp, _allow2=True)[0]
 
-    def __rmul__(self: Self, other: int | float) -> TGAColor_t:
+    def __rmul__(self: Self, other: float) -> TGAColor_t:
         """Scaling"""
         return self * other
 
-    def __truediv__(self: Self, other: int | float) -> TGAColor_t:
+    def __truediv__(self: Self, other: float) -> TGAColor_t:
         """Scaling"""
         if isinstance(other, (int, float, np.integer, np.floating)):
             if other == 0:
@@ -201,12 +206,12 @@ class TGAColor_t:
             return TGAColor_from_raw(res, bpp=self.bytespp, _allow2=True)[0]
         return NotImplemented
 
-    def __le__(self: Self, other: Any) -> bool:
+    def __le__(self: Self, other: object) -> bool:
         if not isinstance(other, TGAColor_t) or self.bytespp != other.bytespp:
             return NotImplemented
         return self._data <= other._data
 
-    def __eq__(self: Self, other: Any) -> bool:
+    def __eq__(self: Self, other: object) -> bool:
         if not isinstance(other, TGAColor_t):
             return NotImplemented
         # This is almost 7X faster than hashing each and comparing
@@ -282,7 +287,8 @@ def TGAColor(
             case (_, _, _):
                 bpp_ = uint8_t(4)
             case _:
-                raise ValueError("BPP shenanigans?")
+                msg = "BPP shenanigans?"
+                raise ValueError(msg)
     else:
         bpp_ = uint8_t(bpp)
 
@@ -312,7 +318,8 @@ def TGAColor_from_raw(data: bytes, *, bpp: int, _allow2: bool = False) -> list[T
         return [TGAColor(b=b, g=g, r=r, bpp=3) for (b, g, r) in batched(data, 3)]
     if bpp == 4:  # RGBA
         return [TGAColor(b=b, g=g, r=r, a=a, bpp=4) for (b, g, r, a) in batched(data, 4)]
-    raise NotImplementedError(f"Cannot handle {bpp} BPP")
+    msg = f"Cannot handle {bpp} BPP"
+    raise NotImplementedError(msg)
 
 
 TI = TypeVar("TI", bound="TGAImage")
@@ -326,7 +333,7 @@ class TGAImage:
         RGB = 3
         RGBA = 4
 
-    FORMAT_VALS: Final = set(x.value for x in Format)
+    FORMAT_VALS: Final = {x.value for x in Format}
 
     def __init__(self: Self, w: int = 0, h: int = 0, bpp: int = 4, c: TGAColor_t | None = None) -> None:
         self.width = w
@@ -349,7 +356,9 @@ class TGAImage:
         rgba = np.vectorize(lambda px: px.rgba, signature=f"()->({self.bpp})")
         return rgba(self.npdata)
 
-    def __array__(self: Self, dtype: npt.DTypeLike | None = None, copy: bool | None = None) -> npt.NDArray:
+    def __array__(  # ruff: ignore[bad-dunder-method-name]
+        self: Self, dtype: npt.DTypeLike | None = None, copy: bool | None = None
+    ) -> npt.NDArray:
         # This allows numpy to treat us as "native" data
         if dtype is not None:
             err_msg = f"I don't know how to convert myself to {dtype}!"
@@ -357,7 +366,10 @@ class TGAImage:
         return self.rgba
 
     @classmethod
-    def read_tga_file(cls: type[TI], filename: str | Path) -> TI:
+    def read_tga_file(  # ruff: ignore[custom-type-var-for-self]
+        cls: type[TI],
+        filename: str | Path,
+    ) -> TI:
         """Read a file on disk into memory"""
         header = np.fromfile(filename, dtype=TGAHeader, count=1)[0]
         w = header["width"]
@@ -382,7 +394,7 @@ class TGAImage:
             # trailing = raw_data[data_size:]
             # Truncate it
             raw_data = raw_data[:data_size]
-        res.npdata = np.array([x for x in _grouper(TGAColor_from_raw(raw_data, bpp=bpp), w)], dtype=TGAColor_t)
+        res.npdata = np.array(list(_grouper(TGAColor_from_raw(raw_data, bpp=bpp), w)), dtype=TGAColor_t)
         assert res.npdata.shape == (h, w), f"Re-shaping error? {(h, w)=} vs. {res.npdata.shape}"
         if not (imgd & 0x20):
             res.flip_vertically()
@@ -401,12 +413,13 @@ class TGAImage:
     def verify(self: Self) -> None:
         """Checks that all pixels are the right size"""
         # Generically named if we want to add other verification later
-        errs: list[str] = []
         # Check pixels have correct BPP:
         all_bytespp: Final = np.vectorize(lambda x: x.bytespp)(self.npdata)
-        for bad_bpp in np.argwhere(all_bytespp != self.bpp).tolist():
-            # Internally addressed as (y, x) so swap in report
-            errs.append(f"Pixel (x, y)={bad_bpp[1], bad_bpp[0]} has bytespp={all_bytespp[*bad_bpp]} not {self.bpp}")
+        # Internally addressed as (y, x) so swap in report
+        errs: list[str] = [
+            f"Pixel (x, y)={bad_bpp[1], bad_bpp[0]} has bytespp={all_bytespp[*bad_bpp]} not {self.bpp}"
+            for bad_bpp in np.argwhere(all_bytespp != self.bpp).tolist()
+        ]
         if errs:
             err_msg = f"{len(errs)} verification errors!\n" + "\n".join(errs)
             raise ValueError(err_msg)
@@ -424,7 +437,7 @@ class TGAImage:
         header["height"] = self.height
         header["datatypecode"] = (10 if rle else 2) + (1 if self.bpp == self.Format.GRAYSCALE else 0)
         header["imagedescriptor"] = 0 if vflip else 0x20  # top-left or bottom-left origin
-        with open(filename, "wb") as out:
+        with Path(filename).open("wb") as out:
             out.write(header.tobytes())
             out.write(self.unload_rle_data() if rle else self._raw_payload)
             out.write(developer_area_ref)

@@ -1,20 +1,21 @@
-#!/bin/env python
 from __future__ import annotations
 
 import os
 import sys
-from collections.abc import Callable, Generator
 from functools import cache
 from pathlib import Path
-from typing import Final, NamedTuple, Self
+from typing import TYPE_CHECKING, Final, NamedTuple, Self
 
 import numpy as np
 import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
-from ..tgaimage import TGAColor, TGAColor_t, TGAImage, uint8_t
-from ..tgaimage import err as plot_err
+from lib.tgaimage import TGAColor, TGAColor_t, TGAImage, uint8_t
+from lib.tgaimage import err as plot_err
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Generator
 
 valid_uint8_t = st.integers(0, 255)
 valid_uint8_t_div2 = st.integers(0, 127)
@@ -111,7 +112,7 @@ def file_suite(request: pytest.FixtureRequest) -> Generator[GoldenFile]:
     """Converts TEST_FILES into pytest-native input iterators"""
     if os.getenv("QUICK_CHECK") and request.param.width >= 16:
         pytest.skip("QUICK_CHECK set")
-    yield request.param
+    return request.param
 
 
 class TestTGAColor:
@@ -307,7 +308,7 @@ class TestTGAColor:
         with subtests.test("Downsizing"):
             uut = TGAImage(w=1, h=1, bpp=1)
             for bpp in range(2, 5):
-                with pytest.warns():
+                with pytest.warns(UserWarning, match="changed bpp"):
                     uut.set(0, 0, TGAColor_t.random(bpp=uint8_t(bpp)))
         with subtests.test("Upsizing"):
             uut = TGAImage(w=1, h=1, bpp=4)
@@ -470,7 +471,7 @@ class TestTGAColor:
     @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
     def test_scaling_zero(self: Self, *, bpp: int) -> None:
         with pytest.raises(ZeroDivisionError):
-            TGAColor_t.random() / 0
+            TGAColor_t.random(bpp=uint8_t(bpp)) / 0
 
 
 @st.composite
@@ -481,7 +482,7 @@ def limited_xy(draw: Callable, min_: int = 0) -> tuple[int, int]:
     This is used to randomize tests where we want an (x, y) and know it is an index within (w, h)
     """
     # The TGA spec is 2^16-1, but that ends up being really slow and doesn't really "prove" much
-    MAX_VAL: Final[int] = pow(2, 10) - 1
+    MAX_VAL: Final[int] = pow(2, 10) - 1  # ruff: ignore[non-lowercase-variable-in-function]
     max_ = draw(st.integers(min_value=min_, max_value=MAX_VAL))
     sub = draw(st.integers(min_value=min_, max_value=max_ - 1)) if max_ else 0
     return (max_, sub)
@@ -504,8 +505,7 @@ class TestTGAImage:
     @staticmethod
     def count_unique_colors(uut: TGAImage) -> int:
         uniques = set(uut.npdata.flat)
-        count = len(uniques)
-        return count
+        return len(uniques)
 
     @staticmethod
     def skip_missing(tga_file: Path) -> None:
@@ -627,19 +627,20 @@ class TestTGAImage:
             len_test = len(test_data)
             len_golden = len(golden_data)
             assert len_test == len_golden
-            CHUNK_SIZE = 32
+            CHUNK_SIZE = 32  # ruff: ignore[non-lowercase-variable-in-function]
             for chunk in range(0, len(golden_data), CHUNK_SIZE):
                 # The first half is to let you see where the difference is in absolute terms
                 abs_loc = chunk * CHUNK_SIZE
-                assert abs_loc >= 0 and golden_data[chunk : chunk + CHUNK_SIZE] == test_data[chunk : chunk + CHUNK_SIZE]
+                assert abs_loc >= 0
+                assert golden_data[chunk : chunk + CHUNK_SIZE] == test_data[chunk : chunk + CHUNK_SIZE]
 
     @given(h_y=limited_xy(), w_x=limited_xy())
     def test_set_get(self: Self, h_y: tuple[int, int], w_x: tuple[int, int]) -> None:
         (h, y) = h_y
         (w, x) = w_x
         # Minimum 1x1 image:
-        h = h if h else 1
-        w = w if w else 1
+        h = h or 1
+        w = w or 1
         uut = TGAImage(w=w, h=h)
         color = TGAColor(1, 2, 3, 4)
         assert uut.get(0, 0) == uut.fill_value

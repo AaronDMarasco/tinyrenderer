@@ -20,7 +20,8 @@ height: Final = 2048
 
 def rot(v: vec3, rotation: float = pi / 6) -> vec3:
     Ry: Final = np.array(
-        [[cos(rotation), 0, sin(rotation)], [0, 1, 0], [-sin(rotation), 0, cos(rotation)]], dtype=float
+        [[cos(rotation), 0, sin(rotation)], [0, 1, 0], [-sin(rotation), 0, cos(rotation)]],
+        dtype=float,
     )
     res = Ry @ v.np  # numpy notation for matrix x vector = vector
     return vec3.from_np(res)
