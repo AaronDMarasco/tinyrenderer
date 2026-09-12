@@ -475,7 +475,7 @@ class TestTGAColor:
     @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
     def test_scaling_zero(self: Self, *, bpp: int) -> None:
         with pytest.raises(ZeroDivisionError):
-            TGAColor_t.random(bpp=uint8_t(bpp)) / 0
+            TGAColor_t.random(bpp=uint8_t(bpp)) / 0  # pyrefly: ignore[division-by-zero]
 
 
 @st.composite

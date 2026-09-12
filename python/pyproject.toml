@@ -13,6 +13,7 @@ dev = [
     "hypothesis>=6.164.0",
     "icecream>=2.2.0",
     "mypy>=2.3.0",
+    "pyrefly>=1.3.0",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "ruff>=0.16.1",
@@ -130,4 +131,11 @@ ignore = [
     "invalid-class-name",
     "invalid-function-name",
     "magic-value-comparison",
+]
+
+[tool.pyrefly]
+min-severity = "warn"
+project-includes = [
+    "**/*.py*",
+    "**/*.ipynb",
 ]

@@ -12,6 +12,7 @@ set +e
 uv run ssort --check --diff
 uv run ruff check .
 uv run mypy .
+uv run pyrefly check --summarize-errors
 if [[ -z ${LINT_ONLY} ]]; then
     if [[ -z ${DO_PROFILE} ]]; then
         uv run pytest -vv --cov --cov-report=html --cov-report=term-missing

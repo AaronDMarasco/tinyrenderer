@@ -378,7 +378,7 @@ class TGAImage:
         w = header["width"]
         h = header["height"]
         bpp = int(header["bitsperpixel"]) >> 3
-        data_size: Final = int(w) * int(h) * int(bpp)
+        data_size: Final = int(w) * int(h) * bpp
         dtc = header["datatypecode"]
         imgd = header["imagedescriptor"]
         assert w > 0, f"Interpreted width {w} is invalid!"

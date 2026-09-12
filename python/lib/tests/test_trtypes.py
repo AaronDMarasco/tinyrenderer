@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from math import isnan
-from typing import Self
+from typing import Final, Self
 
 import numpy as np
 import pytest
@@ -181,7 +181,7 @@ class TestVector:
         self: Self, in_data: list[float], vec_param: VecParam, request: pytest.FixtureRequest
     ) -> None:
         """Compare to C++ multiplication operations geometry.h"""
-        this_test = request.node.callspec.id
+        this_test: Final[str] = request.node.callspec.id
         width, class_ = vec_param
         uut = class_(*in_data[:width])
 
@@ -241,7 +241,7 @@ template<int R1,int C1,int C2>mat<R1,C2> operator*(const mat<R1,C1>& lhs, const 
         self: Self, in_data: list[float], vec_param: VecParam, request: pytest.FixtureRequest
     ) -> None:
         """Compare to C++ multiplication operations geometry.h"""
-        this_test = request.node.callspec.id
+        this_test: Final[str] = request.node.callspec.id
         width, _ = vec_param
 
         # ruff: ignore[non-lowercase-variable-in-function]
