@@ -6,6 +6,7 @@ import itertools
 import math
 import threading
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Final, Literal, Self, cast, overload, override
 
@@ -85,6 +86,15 @@ class ZBuffer:
             for y in range(height):
                 fb.set(x, y, TGAColor(round(normalized[x, y])))
         return fb
+
+    def __getitem__(self: Self, idx: int) -> list[float]:
+        """This interface is READ ONLY (due to lock being removed)"""
+        with self._lock:
+            return deepcopy(self.vals[idx])
+
+    def __setitem__(self: Self, _idx: int, _val: object) -> None:
+        err_msg = "Use try_set() to write with locks"
+        raise TypeError(err_msg)
 
 
 @dataclass(frozen=True, slots=True)

@@ -375,6 +375,28 @@ class TestZBuffer:
         uut = ZBuffer(width=20, height=30)
         assert isnan(uut.vals[19][29])
 
+    def test_indexing(self: Self) -> None:
+        uut = ZBuffer(width=3, height=3)
+        # Classic assignment
+        for x in range(3):
+            for y in range(3):
+                uut.vals[x][y] = x + 3 * y
+        # Direct getitem call (read/confirm)
+        for x in range(3):
+            for y in range(3):
+                assert uut[x][y] == x + 3 * y
+        # Direct getitem assignment FAILS and should only change a local copy, leaving the original values
+        for x in range(3):
+            for y in range(3):
+                uut[x][y] = 5 * x + y
+        # Direct getitem call (read/confirm NO CHANGE)
+        for x in range(3):
+            for y in range(3):
+                assert uut[x][y] == x + 3 * y
+        # Lastly, trying to assign a full row should also fail:
+        with pytest.raises(TypeError, match=r"try_set()"):
+            uut[0] = 5
+
     def test_locks(self: Self) -> None:
         uut = ZBuffer(width=20, height=30)
         assert uut.try_set(19, 17, 13.4)  # New value good
