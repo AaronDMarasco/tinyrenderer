@@ -362,6 +362,11 @@ template<int R1,int C1,int C2>mat<R1,C2> operator*(const mat<R1,C1>& lhs, const 
 
 
 class TestZBuffer:
+    def test_array(self: Self) -> None:
+        uut = ZBuffer(width=3, height=3).array
+        assert len(uut) == 9
+        assert all(isnan(v) for v in uut)
+
     def test_default_size(self: Self) -> None:
         with pytest.raises(TypeError):
             _ = ZBuffer()  # type: ignore[call-arg]

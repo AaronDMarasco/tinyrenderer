@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import math
 import threading
 from abc import ABC, abstractmethod
@@ -50,6 +51,10 @@ class ZBuffer:
             numpy.full((width, height), numpy.nan, dtype=float).tolist(),
         )
         self._lock = threading.Lock()
+
+    @property
+    def array(self: Self) -> list[float]:
+        return list(itertools.chain.from_iterable(self.vals))
 
     def try_set(self: Self, x: int, y: int, val: float) -> bool:
         """Atomic-ish set and get if yours was written"""
