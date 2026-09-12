@@ -26,6 +26,11 @@ class IShader(ABC):
     @abstractmethod
     def fragment(self: Self, bar: list[float]) -> tuple[bool, TGAColor_t]: ...
 
+    # We don't need this because our Model handles scaling automatically when using ext_color()
+    # # @staticmethod
+    # # def sample_2d(img: TGAImage, uvf: vec2) -> TGAColor_t:
+    # #     return img.get(uvf.x * img.width, uvf.y * img.height)
+
 
 def lookat(eye: vec3, center: vec3, up: vec3) -> None:
     # See https://haqr.eu/tinyrenderer/camera/ for vector naming

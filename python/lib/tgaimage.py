@@ -174,6 +174,9 @@ class TGAColor_t:
     def resize(self: Self, bpp: int | uint8_t) -> TGAColor_t:
         """Converts to a new pixel with a lower BPP"""
         # TODO: Better algorithm if RGB => Mono? Average maybe?
+        # Special case: Assume alpha=255
+        if (self.bytespp, bpp) == (3, 4):
+            return TGAColor(r=self.r, g=self.g, b=self.b, a=255, bpp=4)
         if bpp > self.bytespp:
             err_msg = f"Asked to increase BPP from {self.bytespp} to {bpp} and don't know how!"
             raise ValueError(err_msg)
@@ -190,7 +193,7 @@ class TGAColor_t:
         """Scaling"""
         if not isinstance(other, (int, float, np.integer, np.floating)):
             return NotImplemented
-        res = b"".join(round(v * other).to_bytes() for v in self._data)
+        res = b"".join(min(round(v * other), 255).to_bytes() for v in self._data)
         return TGAColor_from_raw(res, bpp=self.bytespp, _allow2=True)[0]
 
     def __rmul__(self: Self, other: float) -> TGAColor_t:
@@ -464,7 +467,8 @@ class TGAImage:
             except Exception as err:
                 err_msg = f"Pixel write at ({x}, {y}) {c} failed resizing to bpp={self.bpp}"
                 raise ValueError(err_msg) from err
-            warn(f"Pixel write at ({x}, {y}) changed bpp: was {old} now {c}", stacklevel=2)
+            if (old.bytespp, self.bpp) != (3, 4):  # Don't warn if just adding alpha channel
+                warn(f"Pixel write at ({x}, {y}) changed bpp: was {old} now {c}", stacklevel=2)
         if not (0 <= x < self.width) or not (0 <= y < self.height):
             logger.warning("TGAImage.set(%s, %s) invalid: Image is %d x %d", x, y, self.width, self.height)
             return

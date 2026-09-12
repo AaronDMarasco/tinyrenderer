@@ -152,6 +152,8 @@ class ModelV2:
         # Note - there is a Z in some files...?
         return self.texture_vs[vertex].xy
 
+    # uv: ClassVar[Callable[[Self, int, int], vec2]] = vert_texture
+
     def ext_color(self: Self, table: SupportFiles, uv: vec2) -> TGAColor_t:
         """Use file to get a color from a U,V pair"""
         assert table in self.ext, f"External file '{table}' wasn't loaded!"

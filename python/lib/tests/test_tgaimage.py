@@ -313,8 +313,12 @@ class TestTGAColor:
         with subtests.test("Upsizing"):
             uut = TGAImage(w=1, h=1, bpp=4)
             for bpp in range(1, 4):
-                with pytest.raises(ValueError):
+                if bpp == 3:
+                    # pytest.skip("BPP 3=>4 allowed")
                     uut.set(0, 0, TGAColor_t.random(bpp=uint8_t(bpp)))
+                else:
+                    with pytest.raises(ValueError):
+                        uut.set(0, 0, TGAColor_t.random(bpp=uint8_t(bpp)))
 
     @given(box=st.integers(min_value=1, max_value=32), new_max=valid_uint8_t)
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
@@ -463,10 +467,10 @@ class TestTGAColor:
                 assert uut.r == round(bgra_in[2] / 3.2)
             if bpp >= 4:
                 assert uut.a == round(bgra_in[3] / 3.2)
-        with subtests.test("Overflow"):
-            uut = TGAColor(*[255, 255, 255, 255][:bpp], bpp=bpp)
-            with pytest.raises((OverflowError, ValueError)):
-                _ = 2 * uut
+        with subtests.test("Saturation"):
+            uut = TGAColor(*[130, 150, 180, 220][:bpp], bpp=bpp)
+            uut2 = 2 * uut
+            assert list(uut2._data) == [255] * bpp  # _data is a tuple
 
     @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
     def test_scaling_zero(self: Self, *, bpp: int) -> None:
