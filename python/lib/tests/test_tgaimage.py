@@ -528,7 +528,7 @@ class TestTGAImage:
                 c = TGAColor(v, v, v, v)
                 uut.set(row, col, c)
                 if first_run:
-                    assert cls.GRADIENT is not None, "Useless but keeping mypy happy"
+                    assert cls.GRADIENT is not None, "Useless but keeping typecheckers happy"
                     cls.GRADIENT[col].append(c)
         return uut
 
