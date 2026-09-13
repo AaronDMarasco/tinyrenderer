@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 import threading
 from dataclasses import FrozenInstanceError, dataclass, field
@@ -19,6 +20,7 @@ from numpy import dtype
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
+    from types import FrameType
 
 try:
     err: ImportError | None = None
@@ -557,6 +559,19 @@ class TGAImage:
                     count -= size
             return res.getvalue()
 
+    def _variable_name(self: Self, *, frame: FrameType | None = None) -> str | None:
+        """Try to figure out what user calls us"""
+        if frame is None:
+            frame = inspect.currentframe()
+        if ((this_frame := frame) is None) or ((caller_frame := this_frame.f_back) is None):
+            return None
+        # Get all variables in the caller's frame
+        namespace: Final[dict[str, object]] = {**caller_frame.f_globals, **caller_frame.f_locals}
+        this: Final[list[str]] = [k for k, v in namespace.items() if v is self]
+        if this == ["self"]:  # Go back farther
+            return self._variable_name(frame=caller_frame)
+        return this[0] if this else None
+
     def plot(self: Self, plot: bool = True, *, _test_mode: bool = False) -> None:
         """Plot an image using matplotlib"""
         if not plot:
@@ -571,7 +586,14 @@ class TGAImage:
             )
             return
         assert plt is not None  # Keep typing happy
-        plt.imshow(self, origin="lower")
+        img = plt.imshow(self, origin="lower")
+        if (
+            (this := self._variable_name())
+            and ((fig := img.get_figure()) is not None)
+            and ((manager := fig.canvas.manager) is not None)
+        ):
+            manager.set_window_title(this)
+            # plt.title(this)
         if not _test_mode:
             plt.show()
 

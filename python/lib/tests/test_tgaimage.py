@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import random
+import string
 import sys
 from functools import cache
 from pathlib import Path
@@ -651,6 +653,17 @@ class TestTGAImage:
         uut.set(x, y, color)
         assert uut.get(x, y) != uut.fill_value
         assert uut.get(x, y) == color
+
+    def test_variable_name(self: Self) -> None:
+        # Yes, exec() and eval() are "bad" but if I do anything else, the test becomes useless, e.g. putting them all
+        # into a dictionary ends up catching the iterator reference on the way out (like 'v' from 'k, v')
+        uuts: set[str] = set()
+        for _ in range(100):
+            random_name = "".join(random.choices(string.ascii_lowercase, k=5))  # ruff: ignore[suspicious-non-cryptographic-random-usage]
+            exec(f"test_{random_name} = TGAImage()")  # ruff: ignore[exec-builtin]
+            uuts.add(f"test_{random_name}")
+        for v in uuts:
+            assert eval(f"{v}._variable_name()") == v  # ruff: ignore[suspicious-eval-usage]
 
     def test_vertical_flip(self: Self) -> None:
         uut = self.gradient_fill()
