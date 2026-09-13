@@ -429,6 +429,19 @@ class TGAImage:
             err_msg = f"{len(errs)} verification errors!\n" + "\n".join(errs)
             raise ValueError(err_msg)
 
+    def _variable_name(self: Self, *, frame: FrameType | None = None) -> str | None:
+        """Try to figure out what user calls us"""
+        if frame is None:
+            frame = inspect.currentframe()
+        if ((this_frame := frame) is None) or ((caller_frame := this_frame.f_back) is None):
+            return None
+        # Get all variables in the caller's frame
+        namespace: Final[dict[str, object]] = {**caller_frame.f_globals, **caller_frame.f_locals}
+        this: Final[list[str]] = [k for k, v in namespace.items() if v is self]
+        if this == ["self"]:  # Go back farther
+            return self._variable_name(frame=caller_frame)
+        return this[0] if this else None
+
     def write_tga_file(self: Self, filename: str | Path, vflip: bool = True, rle: bool = True) -> None:
         """Writes image to disk"""
         # logger.debug("Writing to file %s...", filename)
@@ -448,7 +461,10 @@ class TGAImage:
             out.write(developer_area_ref)
             out.write(extension_area_ref)
             out.write(footer)
-        logger.info("Wrote to file %s: %s", filename, self)
+        if name := self._variable_name():
+            logger.info("Wrote '%s' to file %s: %s", name, filename, self)
+        else:
+            logger.info("Wrote to file %s: %s", filename, self)
 
     def flip_horizontally(self: Self) -> None:
         self.npdata = np.fliplr(self.npdata)
@@ -558,19 +574,6 @@ class TGAImage:
                     res.write(bytes(unique_values[i]))
                     count -= size
             return res.getvalue()
-
-    def _variable_name(self: Self, *, frame: FrameType | None = None) -> str | None:
-        """Try to figure out what user calls us"""
-        if frame is None:
-            frame = inspect.currentframe()
-        if ((this_frame := frame) is None) or ((caller_frame := this_frame.f_back) is None):
-            return None
-        # Get all variables in the caller's frame
-        namespace: Final[dict[str, object]] = {**caller_frame.f_globals, **caller_frame.f_locals}
-        this: Final[list[str]] = [k for k, v in namespace.items() if v is self]
-        if this == ["self"]:  # Go back farther
-            return self._variable_name(frame=caller_frame)
-        return this[0] if this else None
 
     def plot(self: Self, plot: bool = True, *, _test_mode: bool = False) -> None:
         """Plot an image using matplotlib"""

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from math import isnan
 from typing import Final, Self
 
@@ -367,6 +368,35 @@ class TestZBuffer:
         assert len(uut) == 9
         assert all(isnan(v) for v in uut)
 
+    def test_deep_copy(self: Self) -> None:
+        gold = ZBuffer(height=3, width=2)
+        count = 0
+        for x in range(2):
+            for y in range(3):
+                gold.vals[x][y] = count
+                count += 1
+        uut = copy.deepcopy(gold)
+        assert uut is not gold
+        assert uut.vals is not gold.vals
+        count = 0
+        for x in range(2):
+            for y in range(3):
+                assert gold.vals[x][y] == count, (x, y, count)
+                assert uut.vals[x][y] == count, (x, y, count)
+                count += 1
+        count = 10
+        for x in range(2):
+            for y in range(3):
+                gold.vals[x][y] = count
+                count += 1
+        # Copy should be independent and unchanged
+        count = 0
+        for x in range(2):
+            for y in range(3):
+                assert gold.vals[x][y] == 10 + count, (x, y, count)
+                assert uut.vals[x][y] == count, (x, y, count)
+                count += 1
+
     def test_default_size(self: Self) -> None:
         with pytest.raises(TypeError):
             _ = ZBuffer()  # type: ignore[call-arg]
@@ -374,6 +404,21 @@ class TestZBuffer:
     def test_dimensions(self: Self) -> None:
         uut = ZBuffer(width=20, height=30)
         assert isnan(uut.vals[19][29])
+
+    def test_fix_nan(self: Self) -> None:
+        gold = ZBuffer(height=3, width=2)
+        gold.try_set(0, 0, 42)
+        gold.try_set(1, 1, 42.42)
+        gold.try_set(1, 2, 42.4242)
+        uut = copy.deepcopy(gold)
+        uut.fix_nan(-1000)
+        for x in range(2):
+            for y in range(3):
+                assert not isnan(uut[x][y])
+                if isnan(gold[x][y]):
+                    assert uut[x][y] == -1000
+                else:
+                    assert gold[x][y] == pytest.approx(uut[x][y])
 
     def test_indexing(self: Self) -> None:
         uut = ZBuffer(width=3, height=3)

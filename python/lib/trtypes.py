@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import itertools
 import math
 import threading
@@ -41,7 +42,7 @@ def empty_matrix(rc: int, /) -> MatrixLike:
 
 @dataclass(slots=True)
 class ZBuffer:
-    """Raw list of Z values, used in later assignments"""
+    """Raw list of Z values with set function that only allows increasing values to be written"""
 
     vals: list[list[float]] = field(init=False)
     _lock: threading.Lock = field(init=False)
@@ -53,9 +54,29 @@ class ZBuffer:
         )
         self._lock = threading.Lock()
 
+    def __deepcopy__(self: Self, memo: dict) -> ZBuffer:
+        # Cannot copy lock
+        result = ZBuffer(width=len(self.vals), height=len(self.vals[0]))
+        result.vals = copy.deepcopy(self.vals, memo)
+        return result
+
     @property
     def array(self: Self) -> list[float]:
+        """Dump a straight array of our values"""
         return list(itertools.chain.from_iterable(self.vals))
+
+    def fix_nan(self: Self, val: float) -> None:
+        """Set all NaN values to a given value"""
+
+        def nan_to_val(v: float) -> float:
+            return val if math.isnan(v) else v
+
+        self.vals = [[nan_to_val(y) for y in x] for x in self.vals]
+
+        # for val_x in self.vals:
+        #     for val_y in val_x:
+        #         if math.isnan(val_y):
+        #             val_y = val
 
     def try_set(self: Self, x: int, y: int, val: float) -> bool:
         """Atomic-ish set and get if yours was written"""
