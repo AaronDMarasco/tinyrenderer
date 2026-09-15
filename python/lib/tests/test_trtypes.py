@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import copy
+import threading
 from math import isnan
 from typing import Final, Self
 
@@ -9,6 +11,7 @@ import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
+from lib import trtypes  # for THREAD_SAFE direct manipulation
 from lib.tgaimage import TGAColor
 from lib.trtypes import Matrix2f, Matrix3f, Matrix4f, MatrixLike, ZBuffer, _VectorBase, empty_matrix, vec2, vec3, vec4
 
@@ -442,11 +445,21 @@ class TestZBuffer:
         with pytest.raises(TypeError, match=r"try_set()"):
             uut[0] = 5
 
-    def test_locks(self: Self) -> None:
-        uut = ZBuffer(width=20, height=30)
-        assert uut.try_set(19, 17, 13.4)  # New value good
-        assert not uut.try_set(19, 17, 13.4)  # Repeated value bad
-        assert uut.vals[19][17] == pytest.approx(13.4)
+    @pytest.mark.parametrize("thread_safe", [True, False], ids=["thread_safe", "not thread_safe"])
+    def test_locks(self: Self, thread_safe: bool) -> None:
+        old_ts = trtypes.THREAD_SAFE
+        trtypes.THREAD_SAFE = thread_safe  # type: ignore[misc]  # I know it was declared Final...
+        try:
+            uut = ZBuffer(width=20, height=30)
+            assert uut.try_set(19, 17, 13.4)  # New value good
+            assert not uut.try_set(19, 17, 13.4)  # Repeated value bad
+            assert uut.vals[19][17] == pytest.approx(13.4)
+            if thread_safe:
+                assert isinstance(uut._cm, type(threading.Lock()))
+            else:
+                assert isinstance(uut._cm, contextlib.nullcontext)
+        finally:
+            trtypes.THREAD_SAFE = old_ts  # type: ignore[misc]  # I know it was declared Final...
 
     @pytest.mark.parametrize("allow_nan", [True, False], ids=["allow_nan=True", "allow_nan=False"])
     def test_to_tga_1x1(self: Self, allow_nan: bool) -> None:

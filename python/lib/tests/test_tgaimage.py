@@ -148,7 +148,7 @@ class TestTGAColor:
 
     def test_bad_init(self: Self, subtests: pytest.Subtests) -> None:
         with subtests.test("Require TGAColor() helper"), pytest.raises(TypeError, match="call TGAColor"):
-            TGAColor_t(b=1, g=1, r=1, a=1)
+            TGAColor_t(bgra=(1, 1, 1, 1))
         with subtests.test("Bad BPP (5..255)"):
             for bpp in range(5, 256):
                 with pytest.raises(ValueError, match="Invalid value given"):

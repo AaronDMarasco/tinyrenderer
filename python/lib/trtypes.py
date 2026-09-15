@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import itertools
 import math
@@ -25,6 +26,9 @@ type Matrix4f = numpy.ndarray[tuple[Literal[4], Literal[4]], numpy.dtype[numpy.f
 
 type MatrixLike = Matrix2f | Matrix3f | Matrix4f
 
+# The threading didn't seem to help, and adding the deepcopy made the ZBuffer.__getitem__ take 54s vs. 0.01s
+THREAD_SAFE: Final[bool] = False
+
 
 @overload
 def empty_matrix(rc: Literal[2], /) -> Matrix2f: ...
@@ -45,14 +49,17 @@ class ZBuffer:
     """Raw list of Z values with set function that only allows increasing values to be written"""
 
     vals: list[list[float]] = field(init=False)
-    _lock: threading.Lock = field(init=False)
+    _cm: contextlib.AbstractContextManager = field(init=False)
 
     def __init__(self: Self, *, width: int, height: int) -> None:
         self.vals = cast(
             "list[list[float]]",
             numpy.full((width, height), numpy.nan, dtype=float).tolist(),
         )
-        self._lock = threading.Lock()
+        if THREAD_SAFE:
+            self._cm = threading.Lock()
+        else:
+            self._cm = contextlib.nullcontext()
 
     def __deepcopy__(self: Self, memo: dict) -> ZBuffer:
         # Cannot copy lock
@@ -73,14 +80,9 @@ class ZBuffer:
 
         self.vals = [[nan_to_val(y) for y in x] for x in self.vals]
 
-        # for val_x in self.vals:
-        #     for val_y in val_x:
-        #         if math.isnan(val_y):
-        #             val_y = val
-
     def try_set(self: Self, x: int, y: int, val: float) -> bool:
         """Atomic-ish set and get if yours was written"""
-        with self._lock:
+        with self._cm:
             if val <= self.vals[x][y]:
                 return False
             self.vals[x][y] = val
@@ -110,8 +112,9 @@ class ZBuffer:
 
     def __getitem__(self: Self, idx: int) -> list[float]:
         """This interface is READ ONLY (due to lock being removed)"""
-        with self._lock:
+        if THREAD_SAFE:
             return deepcopy(self.vals[idx])
+        return self.vals[idx]
 
     def __setitem__(self: Self, _idx: int, _val: object) -> None:
         err_msg = "Use try_set() to write with locks"

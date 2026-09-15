@@ -19,7 +19,6 @@ import numpy.typing as npt
 from numpy import dtype
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
     from types import FrameType
 
 try:
@@ -39,14 +38,6 @@ rng = np.random.default_rng()
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 _SENTINEL = object()  # Stop any direct calls to TGAColor_t
-
-
-# Utility from itertools documentation
-def _grouper(iterable: Iterable, n: int) -> Iterator:
-    """Collect data into non-overlapping fixed-length chunks or blocks."""
-    iterators = [iter(iterable)] * n
-    return zip(*iterators, strict=True)
-
 
 # The binary layout of a TGA header
 TGAHeader: Final[dtype] = dtype([
@@ -82,34 +73,20 @@ class TGAColor_t:
 
     def __init__(
         self: Self,
-        b: int | None = None,
-        g: int | None = None,
-        r: int | None = None,
-        a: int | None = None,
         *,
-        bpp: uint8_t | None = None,
+        bgra: tuple[int, ...],
         _guard: object | None = None,
     ) -> None:
-        # Cached responses:
-        self._byte_data = None  # __bytes__
-        self._repr = None  # __repr__
 
         if _guard is not _SENTINEL:
             err_msg = "Only call TGAColor() method to get a TGAColor_t"
             raise TypeError(err_msg)
 
-        if bpp is None:
-            msg = "BPP shenanigans? Wrappers should have set this!"
-            raise ValueError(msg)
-        if not (1 <= bpp <= 4):
-            msg = f"Invalid BPP={bpp}!"
-            raise ValueError(msg)
-
-        # I hate to ignore type checking, but we ensure right after that it will not have None...
-        self._data = (b, g, r, a)[:bpp]  # type: ignore[assignment]
-        if None in self._data:
-            err_msg = f"Out-of-order None in constructor! ({b=} {g=} {r=} {a=} {bpp=})"
-            raise ValueError(err_msg)
+        # All error checking is handled in the helper...
+        self._data = bgra
+        # Cached responses:
+        self._byte_data = None  # __bytes__
+        self._repr = None  # __repr__
 
     @property
     def rgba(self: Self) -> npt.NDArray[np.uint8]:
@@ -251,15 +228,9 @@ class TGAColor_t:
 
 
 @cache
-def _TGAColor_factory(
-    bpp: uint8_t,
-    b: int | None = None,
-    g: int | None = None,
-    r: int | None = None,
-    a: int | None = None,
-) -> TGAColor_t:
+def _TGAColor_factory(bgra: tuple[int, ...]) -> TGAColor_t:
     """Helper for the TGAColor() factory"""
-    return TGAColor_t(b, g, r, a, bpp=bpp, _guard=_SENTINEL)
+    return TGAColor_t(bgra=bgra, _guard=_SENTINEL)
 
 
 def TGAColor(
@@ -281,20 +252,17 @@ def TGAColor(
         b = 0
 
     bpp_: uint8_t
-    if bpp is None:
-        match (g, r, a):
-            case (None, None, None):
-                bpp_ = uint8_t(1)
-            case (_, None, None):
-                bpp_ = uint8_t(2)
-            case (_, _, None):
-                bpp_ = uint8_t(3)
-            case (_, _, _):
-                bpp_ = uint8_t(4)
-            case _:
-                msg = "BPP shenanigans?"
-                raise ValueError(msg)
+    if a is not None:
+        bpp_ = uint8_t(4)
+    elif r is not None:
+        bpp_ = uint8_t(3)
+    elif g is not None:
+        bpp_ = uint8_t(2)
     else:
+        bpp_ = uint8_t(1)
+
+    if bpp is not None and bpp != bpp_:
+        logger.debug("Computed bpp %d but user override %d", bpp_, bpp)
         bpp_ = uint8_t(bpp)
 
     err_msg = "Invalid value given - must be 0..255!"
@@ -306,23 +274,29 @@ def TGAColor(
         raise ValueError(err_msg)
     if bpp_ >= 4 and (a is None or not (0 <= a <= 255)):
         raise ValueError(err_msg)
+    if not (1 <= bpp_ <= 4):
+        err_msg = f"Invalid bpp={bpp_} given!"
+        raise ValueError(err_msg)
 
-    return _TGAColor_factory(bpp_, b, g, r, a)
+    return _TGAColor_factory((b, g, r, a)[:bpp_])
 
 
-def TGAColor_from_raw(data: bytes, *, bpp: int, _allow2: bool = False) -> list[TGAColor_t]:
+def TGAColor_from_raw(data: bytes | bytearray, *, bpp: int, _allow2: bool = False) -> list[TGAColor_t]:
     """Factory helper - take bytes and get a list of TGAColors"""
     if (ld := len(data)) % bpp:
         warn(f"Possibly bad read of {ld} bytes at {bpp} bpp = remainder {ld % bpp}", stacklevel=2)
 
-    if bpp == 1:  # Grayscale
-        return [TGAColor(b=v, bpp=1) for v in data]
-    if _allow2 and bpp == 2:  # Special mode for scaling tests only(?)
+    match bpp:
+        case TGAImage.Format.GRAYSCALE:
+            return [TGAColor(b=v, bpp=1) for v in data]
+        case TGAImage.Format.RGB:
+            return [TGAColor(b=b, g=g, r=r, bpp=3) for (b, g, r) in batched(data, 3)]
+        case TGAImage.Format.RGBA:
+            return [TGAColor(b=b, g=g, r=r, a=a, bpp=4) for (b, g, r, a) in batched(data, 4)]
+        case _:
+            pass
+    if _allow2 and bpp == 2:  # Special mode for scaling tests only
         return [TGAColor(b=b, g=g, bpp=2) for (b, g) in batched(data, 2)]
-    if bpp == 3:  # RGB
-        return [TGAColor(b=b, g=g, r=r, bpp=3) for (b, g, r) in batched(data, 3)]
-    if bpp == 4:  # RGBA
-        return [TGAColor(b=b, g=g, r=r, a=a, bpp=4) for (b, g, r, a) in batched(data, 4)]
     msg = f"Cannot handle {bpp} BPP"
     raise NotImplementedError(msg)
 
@@ -389,7 +363,7 @@ class TGAImage:
         assert dtc in {2, 3, 10, 11}, f"Unknown file format '{dtc}'!"
         res = cls(w=int(w), h=int(h), bpp=bpp)
         # Read the data without the header
-        raw_data = Path(filename).read_bytes()[TGAHeader.itemsize :]
+        raw_data = bytearray(Path(filename).read_bytes())[TGAHeader.itemsize :]
         if dtc in {10, 11}:
             # RLE data
             raw_data = res.load_rle_data(raw_data)
@@ -398,9 +372,8 @@ class TGAImage:
             # Not RLE data
             # trailing = raw_data[data_size:]
             # Truncate it
-            raw_data = raw_data[:data_size]
-        res.npdata = np.array(list(_grouper(TGAColor_from_raw(raw_data, bpp=bpp), w)), dtype=TGAColor_t)
-        assert res.npdata.shape == (h, w), f"Re-shaping error? {(h, w)=} vs. {res.npdata.shape}"
+            del raw_data[data_size:]
+        res.npdata = np.asarray(TGAColor_from_raw(raw_data, bpp=bpp), dtype=TGAColor_t).reshape(h, w)
         if not (imgd & 0x20):
             res.flip_vertically()
             res.was_vflipped = True
@@ -493,7 +466,7 @@ class TGAImage:
         with self._lock:
             self.npdata[y, x] = c
 
-    def load_rle_data(self: Self, in_: bytes) -> bytes:
+    def load_rle_data(self: Self, in_: bytes | bytearray) -> bytearray:
         """Decompresses a TGA RLE stream"""
         # See https://www.fileformat.info/format/tga/egff.htm
         pixel_count: Final[int] = self.width * self.height
@@ -516,7 +489,7 @@ class TGAImage:
                         raw_data.write(in_[current_byte : current_byte + chunk_end])
                 current_pixel += chunk_header
                 current_byte += chunk_end
-            return raw_data.getvalue()
+            return bytearray(raw_data.getvalue())
 
     def unload_rle_data(self: Self) -> bytes:
         """
