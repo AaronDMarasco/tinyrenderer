@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import logging
 import sys
 from typing import Final, Self, override
@@ -16,8 +17,8 @@ DIE_ON_FAILURE: Final[bool] = True
 
 width: Final = 320
 height: Final = 320
-shadow_w: Final = width * 10
-shadow_h: Final = height * 10
+shadow_w: Final = width * 5
+shadow_h: Final = height * 5
 
 eye: Final = vec3(-1, 0, 2)  # Camera position
 center: Final = vec3(0, 0, 0)  # Camera direction
@@ -128,7 +129,7 @@ class Lesson10Shader(our_gl.IShader):
         return (False, diff_color * final_scaling)  # do not discard the pixel
 
 
-def main() -> int:
+def main() -> int:  # ruff: ignore[too-many-branches, too-many-statements]
     # Going to merge all these files into a single output at the end
     input_files = """
 ../obj/floor.obj
@@ -163,8 +164,9 @@ def main() -> int:
                 raise RuntimeError from err
 
     # New shading part
-    mask: list[bool] = [False] * width * height
-    zbuffer_copy: Final = tuple(our_gl.z_buffer.array)
+    # our_gl.z_buffer.fix_nan(-1000)
+    our_gl.z_buffer.to_tga(allow_nan=True, nan_val=0).write_tga_file("zbuffer1.tga")
+    zbuffer_copy: Final = copy.deepcopy(our_gl.z_buffer)
     m_matrix: Final[Matrix4f] = np.linalg.inv(our_gl.view_port @ our_gl.perspective @ our_gl.model_view)
 
     our_gl.lookat(light, center, up)  # build global model_view
@@ -196,9 +198,51 @@ def main() -> int:
 
     trash.write_tga_file("shadowmap.tga")
     trash.plot(PLOT)
+    our_gl.z_buffer.to_tga(allow_nan=True, nan_val=0).write_tga_file("zbuffer2.tga")
+
+    n_matrix: Final[Matrix4f] = our_gl.view_port @ our_gl.perspective @ our_gl.model_view
+
+    logger.debug("Post-processing")
+    mask: np.ndarray = np.zeros(shape=(width, height), dtype=bool)
+    # assert not any(mask.ravel())
+
+    for x in range(width):
+        if x and x % 100 == 0:
+            logger.debug("%d/%d...", x, width)
+        for y in range(height):
+            fragment: vec4 = vec4.from_np(m_matrix @ vec4(x, y, zbuffer_copy[x][y], 1))
+            q: vec4 = vec4.from_np(n_matrix @ fragment)
+            p: vec3 = q.xyz / q.w
+            lit: bool = (
+                (fragment.z < -100)  # Background
+                or (not (0 < p.x <= shadow_w) or not (0 < p.y <= shadow_h))  # out of bounds of shadow buffer
+                or (p.z > (our_gl.z_buffer[round(p.x)][round(p.y)] - 0.03))  # it is visible
+            )
+            mask[x][y] = lit
+
+    logger.debug("Wrote %d masks", width * height)
+    mask_img = TGAImage(w=width, h=height, bpp=TGAImage.Format.GRAYSCALE)
+    mono_black: Final = TGAColor(0, bpp=1)
+    mono_white: Final = TGAColor(255, bpp=1)
+    for x in range(width):
+        for y in range(height):
+            mask_img.set(x, y, mono_black if mask[x][y] else mono_white)
+
+    mask_img.write_tga_file("mask.tga")
+    mask_img.plot(PLOT)
+
+    for x in range(width):
+        for y in range(height):
+            if mask[x][y]:
+                continue
+            c = framebuffer.get(x, y)
+            a: vec3 = vec3(x=c.b, y=c.g, z=c.r)
+            if a.norm < 80:
+                continue
+            a = a.normalized * 80
+            framebuffer.set(x, y, TGAColor(round(a.x), round(a.y), round(a.z), 255))
 
     framebuffer.write_tga_file("output.tga")
-    our_gl.z_buffer.to_tga(allow_nan=True, nan_val=0).write_tga_file("output_z.tga")
     framebuffer.plot(PLOT)
 
     return 0
