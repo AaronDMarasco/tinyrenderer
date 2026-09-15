@@ -5,6 +5,7 @@ if [[ ! -e ../.git/config ]]; then
 fi
 read -r -d '' FILE_LIST << 'END'
 ../README.md
+.gitattributes
 .gitignore
 check
 make_doc

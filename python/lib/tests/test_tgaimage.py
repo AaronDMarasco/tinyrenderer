@@ -1,20 +1,23 @@
-#!/bin/env python
 from __future__ import annotations
 
 import os
+import random
+import string
 import sys
-from collections.abc import Callable, Generator
 from functools import cache
 from pathlib import Path
-from typing import Final, NamedTuple, Self
+from typing import TYPE_CHECKING, Final, NamedTuple, Self
 
 import numpy as np
 import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
-from ..tgaimage import TGAColor, TGAColor_t, TGAImage, uint8_t
-from ..tgaimage import err as plot_err
+from lib.tgaimage import TGAColor, TGAColor_t, TGAImage, uint8_t
+from lib.tgaimage import err as plot_err
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Generator
 
 valid_uint8_t = st.integers(0, 255)
 valid_uint8_t_div2 = st.integers(0, 127)
@@ -94,10 +97,24 @@ TEST_FILES: Final[tuple[GoldenFile, ...]] = (
 )
 
 
+def color_to_bpp(color_type: str) -> int:
+    match color_type:
+        case "Mono":
+            return 1
+        case "RGB":
+            return 3
+        case "RGBA":
+            return 4
+    err_msg = f"Invalid color string '{color_type}'"
+    raise ValueError(err_msg)
+
+
 @pytest.fixture(params=TEST_FILES, ids=[str(g) for g in TEST_FILES])
 def file_suite(request: pytest.FixtureRequest) -> Generator[GoldenFile]:
     """Converts TEST_FILES into pytest-native input iterators"""
-    yield request.param
+    if os.getenv("QUICK_CHECK") and request.param.width >= 16:
+        pytest.skip("QUICK_CHECK set")
+    return request.param
 
 
 class TestTGAColor:
@@ -128,6 +145,34 @@ class TestTGAColor:
         uut = TGAColor()
         with pytest.raises(IndexError):
             uut[v]
+
+    def test_bad_init(self: Self, subtests: pytest.Subtests) -> None:
+        with subtests.test("Require TGAColor() helper"), pytest.raises(TypeError, match="call TGAColor"):
+            TGAColor_t(bgra=(1, 1, 1, 1))
+        with subtests.test("Bad BPP (5..255)"):
+            for bpp in range(5, 256):
+                with pytest.raises(ValueError, match="Invalid value given"):
+                    TGAColor(bpp=bpp)
+        with subtests.test("BPP >= 256"), pytest.raises(OverflowError):
+            TGAColor(bpp=256)
+        with subtests.test("No BPP, bad values"):
+            with pytest.raises(ValueError):
+                TGAColor(b=None, g=1, r=1)
+            with pytest.raises(ValueError):
+                TGAColor(b=1, g=None, r=1)
+            with pytest.raises(ValueError):
+                TGAColor(b=1, g=1, r=None, a=1)
+        # Bad values
+        for test_value in {-1, 256}:
+            with subtests.test(f"Invalid color value {test_value}"):
+                with pytest.raises(ValueError):
+                    TGAColor(b=test_value)
+                with pytest.raises(ValueError):
+                    TGAColor(b=1, g=test_value)
+                with pytest.raises(ValueError):
+                    TGAColor(b=1, g=1, r=test_value)
+                with pytest.raises(ValueError):
+                    TGAColor(b=1, g=1, r=1, a=test_value)
 
     def test_bad_kwargs(self: Self) -> None:
         with pytest.raises(ValueError):
@@ -183,13 +228,30 @@ class TestTGAColor:
             with pytest.raises(IndexError):
                 uut[3]
 
-    def test_caching(self: Self) -> None:
+    @pytest.mark.parametrize("bpp", range(3, 5), ids=[f"bpp={b}" for b in range(3, 5)])
+    @given(b=valid_uint8_t, g=valid_uint8_t, r=valid_uint8_t, a=valid_uint8_t)
+    def test_rgba(self: Self, *, b: int, g: int, r: int, a: int, bpp: int) -> None:
+        uut = TGAColor(b, g, r, a, bpp=bpp)
+        assert uut.rgba[0] == r
+        assert uut.rgba[1] == g
+        assert uut.rgba[2] == b
+        if bpp == 4:
+            assert uut.rgba[3] == a
+        else:
+            with pytest.raises(IndexError):
+                uut.rgba[3]
+
+    @given(b=valid_uint8_t, g=valid_uint8_t, r=valid_uint8_t, a=valid_uint8_t)
+    def test_caching(self: Self, *, b: int, g: int, r: int, a: int) -> None:
         assert TGAColor(1, 2, 3, 4) is TGAColor(1, 2, 3, 4)
         assert TGAColor(1, 2, 3) is TGAColor(1, 2, 3)
         assert TGAColor(1, 2) is TGAColor(1, 2)
         assert TGAColor(1) is TGAColor(1)
         assert TGAColor() is TGAColor()
-        assert all(map(lambda c: c is TGAColor(4, 3, 2, 1), (TGAColor(4, 3, 2, 1) for _ in range(1_000_000))))
+        assert TGAColor(b=b, g=g, r=r, a=a) is TGAColor(b=b, g=g, r=r, a=a)
+        assert TGAColor(b=b, g=g, r=r) is TGAColor(b=b, g=g, r=r)
+        assert TGAColor(b=b, g=g) is TGAColor(b=b, g=g)
+        assert TGAColor(b) is TGAColor(b)
 
     def test_caching_auto_bpp(self: Self) -> None:
         assert TGAColor(1, 2, 3, 4) is TGAColor(1, 2, 3, 4, bpp=4)
@@ -229,6 +291,68 @@ class TestTGAColor:
         assert TGAColor(2) >= TGAColor(1, bpp=1)
         assert TGAColor(1) >= TGAColor()
 
+    @given(b=valid_uint8_t_div2, g=valid_uint8_t_div2, r=valid_uint8_t_div2, a=valid_uint8_t)
+    def test_max_color(self: Self, b: int, g: int, r: int, a: int) -> None:
+        uut = TGAColor(b, g, r, a)
+        max_val = max((b, g, r))
+        assume(a >= max_val)  # Want it to be independent of alpha
+        assert uut.max_color == max_val
+
+    @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
+    @given(bgra_in=st.lists(valid_uint8_t, min_size=4, max_size=4))
+    def test_max_color_parameterized(self: Self, bgra_in: list[int], bpp: int) -> None:
+        uut = TGAColor(*bgra_in, bpp=bpp)
+        max_color_idx = min(bpp, 3)  # Want to ignore alpha (if present)
+        max_val = max(bgra_in[:max_color_idx])
+        assert uut.max_color == max_val
+
+    def test_set_invalid_bpp(self: Self, *, subtests: pytest.Subtests) -> None:
+        with subtests.test("Downsizing"):
+            uut = TGAImage(w=1, h=1, bpp=1)
+            for bpp in range(2, 5):
+                with pytest.warns(UserWarning, match="changed bpp"):
+                    uut.set(0, 0, TGAColor_t.random(bpp=uint8_t(bpp)))
+        with subtests.test("Upsizing"):
+            uut = TGAImage(w=1, h=1, bpp=4)
+            for bpp in range(1, 4):
+                if bpp == 3:
+                    # pytest.skip("BPP 3=>4 allowed")
+                    uut.set(0, 0, TGAColor_t.random(bpp=uint8_t(bpp)))
+                else:
+                    with pytest.raises(ValueError):
+                        uut.set(0, 0, TGAColor_t.random(bpp=uint8_t(bpp)))
+
+    @given(box=st.integers(min_value=1, max_value=32), new_max=valid_uint8_t)
+    @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_set_max(
+        self: Self, caplog: pytest.LogCaptureFixture, subtests: pytest.Subtests, box: int, new_max: int
+    ) -> None:
+        uut = TGAImage(w=box, h=box, bpp=3)
+
+        def _helper(text: str, start: TGAColor_t) -> None:
+            with subtests.test(f"{text}/{box}x{box}/{new_max}"):
+                uut.set(box // 2, box // 2, start)
+                uut.set_max(new_max)
+                assert uut.get(box // 2, box // 2).max_color == new_max
+
+        with subtests.test(f"Black/{box}x{box}/{new_max}"), caplog.at_level("DEBUG"):
+            uut.set(box, box, TGAColor(0, 0, 0))
+            uut.set_max(new_max)
+            assert "all-black" in caplog.text
+
+        _helper("Tiny Red", TGAColor(r=2, g=0, b=0))
+        _helper("Half Red", TGAColor(r=128, g=0, b=0))
+        _helper("Full Red", TGAColor(r=255, g=0, b=0))
+        _helper("Tiny Green", TGAColor(r=0, g=2, b=0))
+        _helper("Half Green", TGAColor(r=0, g=128, b=0))
+        _helper("Full Green", TGAColor(r=0, g=255, b=0))
+        _helper("Tiny Blue", TGAColor(r=0, g=0, b=2))
+        _helper("Half Blue", TGAColor(r=0, g=0, b=128))
+        _helper("Full Blue", TGAColor(r=0, g=0, b=255))
+        _helper("Tiny Gray", TGAColor(r=2, g=2, b=2))
+        _helper("Half Gray", TGAColor(r=128, g=128, b=128))
+        _helper("Middling Gray", TGAColor(r=127, g=128, b=127))
+
     @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
     @given(bgra_in=st.lists(valid_uint8_t, min_size=8, max_size=8))
     def test_sorting_hypothesis_le(self: Self, bgra_in: list[int], bpp: int) -> None:
@@ -253,6 +377,26 @@ class TestTGAColor:
         assert uut[1] == 2
         with pytest.raises(AttributeError):
             uut[1] = uint8_t(2)
+
+    @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
+    def test_random(self: Self, *, bpp: int) -> None:
+        uut = TGAColor_t.random(bpp=uint8_t(bpp))
+        assert uut.bytespp == bpp
+        assert all(0 <= x <= 255 for x in uut._data)
+
+    @pytest.mark.parametrize("bpp", range(2, 5), ids=[f"bpp={b}" for b in range(2, 5)])
+    def test_resize(self: Self, *, bpp: int, subtests: pytest.Subtests) -> None:
+        uut = TGAColor(*[1, 2, 3, 4][:bpp])
+        for test_bpp in range(1, 4):
+            if test_bpp == bpp:
+                continue
+            if test_bpp > bpp:
+                with pytest.raises(ValueError):
+                    uut.resize(test_bpp)
+            else:
+                with subtests.test(f"Resize down to {test_bpp}"):
+                    uut2 = uut.resize(test_bpp)
+                    assert all(uut._data[i] == uut2._data[i] for i in range(test_bpp))
 
     def test_string(self: Self, subtests: pytest.Subtests) -> None:
         with subtests.test("Full Constructor"):
@@ -325,10 +469,15 @@ class TestTGAColor:
                 assert uut.r == round(bgra_in[2] / 3.2)
             if bpp >= 4:
                 assert uut.a == round(bgra_in[3] / 3.2)
-        with subtests.test("Overflow"):
-            uut = TGAColor(*[255, 255, 255, 255][:bpp], bpp=bpp)
-            with pytest.raises((OverflowError, ValueError)):
-                _ = 2 * uut
+        with subtests.test("Saturation"):
+            uut = TGAColor(*[130, 150, 180, 220][:bpp], bpp=bpp)
+            uut2 = 2 * uut
+            assert list(uut2._data) == [255] * bpp  # _data is a tuple
+
+    @pytest.mark.parametrize("bpp", range(1, 5), ids=[f"bpp={b}" for b in range(1, 5)])
+    def test_scaling_zero(self: Self, *, bpp: int) -> None:
+        with pytest.raises(ZeroDivisionError):
+            TGAColor_t.random(bpp=uint8_t(bpp)) / 0  # pyrefly: ignore[division-by-zero]
 
 
 @st.composite
@@ -339,7 +488,7 @@ def limited_xy(draw: Callable, min_: int = 0) -> tuple[int, int]:
     This is used to randomize tests where we want an (x, y) and know it is an index within (w, h)
     """
     # The TGA spec is 2^16-1, but that ends up being really slow and doesn't really "prove" much
-    MAX_VAL: Final[int] = pow(2, 10) - 1
+    MAX_VAL: Final[int] = pow(2, 10) - 1  # ruff: ignore[non-lowercase-variable-in-function]
     max_ = draw(st.integers(min_value=min_, max_value=MAX_VAL))
     sub = draw(st.integers(min_value=min_, max_value=max_ - 1)) if max_ else 0
     return (max_, sub)
@@ -362,8 +511,7 @@ class TestTGAImage:
     @staticmethod
     def count_unique_colors(uut: TGAImage) -> int:
         uniques = set(uut.npdata.flat)
-        count = len(uniques)
-        return count
+        return len(uniques)
 
     @staticmethod
     def skip_missing(tga_file: Path) -> None:
@@ -382,7 +530,7 @@ class TestTGAImage:
                 c = TGAColor(v, v, v, v)
                 uut.set(row, col, c)
                 if first_run:
-                    assert cls.GRADIENT is not None, "Useless but keeping mypy happy"
+                    assert cls.GRADIENT is not None, "Useless but keeping typecheckers happy"
                     cls.GRADIENT[col].append(c)
         return uut
 
@@ -391,6 +539,35 @@ class TestTGAImage:
         uut = TGAImage()
         with pytest.raises(OSError):
             uut.read_tga_file("/abc.tga")
+
+    @given(box=st.integers(min_value=1, max_value=32))
+    @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_brighten(self: Self, caplog: pytest.LogCaptureFixture, subtests: pytest.Subtests, box: int) -> None:
+        uut = TGAImage(w=box, h=box, bpp=3)
+
+        def _helper(text: str, start: TGAColor_t, expected: TGAColor_t) -> None:
+            with subtests.test(f"{text}/{box}x{box}"):
+                uut.set(box // 2, box // 2, start)
+                uut.brighten()
+                assert uut.get(box // 2, box // 2) == expected
+
+        with subtests.test(f"Black/{box}x{box}"), caplog.at_level("DEBUG"):
+            uut.set(box, box, TGAColor(0, 0, 0))
+            uut.brighten()
+            assert "all-black" in caplog.text
+
+        _helper("Tiny Red", TGAColor(r=2, g=0, b=0), TGAColor(r=255, g=0, b=0))
+        _helper("Half Red", TGAColor(r=128, g=0, b=0), TGAColor(r=255, g=0, b=0))
+        _helper("Full Red", TGAColor(r=255, g=0, b=0), TGAColor(r=255, g=0, b=0))
+        _helper("Tiny Green", TGAColor(r=0, g=2, b=0), TGAColor(r=0, g=255, b=0))
+        _helper("Half Green", TGAColor(r=0, g=128, b=0), TGAColor(r=0, g=255, b=0))
+        _helper("Full Green", TGAColor(r=0, g=255, b=0), TGAColor(r=0, g=255, b=0))
+        _helper("Tiny Blue", TGAColor(r=0, g=0, b=2), TGAColor(r=0, g=0, b=255))
+        _helper("Half Blue", TGAColor(r=0, g=0, b=128), TGAColor(r=0, g=0, b=255))
+        _helper("Full Blue", TGAColor(r=0, g=0, b=255), TGAColor(r=0, g=0, b=255))
+        _helper("Tiny Gray", TGAColor(r=2, g=2, b=2), TGAColor(r=255, g=255, b=255))
+        _helper("Half Gray", TGAColor(r=128, g=128, b=128), TGAColor(r=255, g=255, b=255))
+        _helper("Middling Gray", TGAColor(r=127, g=128, b=127), TGAColor(r=253, g=255, b=253))
 
     def test_double_flips(self: Self) -> None:
         uut = self.gradient_fill()
@@ -406,7 +583,6 @@ class TestTGAImage:
         uut.flip_horizontally()
         assert np.array_equal(uut.npdata, np.array(self.GRADIENT))
 
-    @pytest.mark.skipif(bool(os.getenv("QUICK_CHECK")), reason="QUICK_CHECK")
     def test_good_files(self: Self, file_suite: GoldenFile) -> None:
         TestTGAImage.skip_missing(file_suite.path)
         uut = _read_tga_file(file_suite.path)
@@ -436,13 +612,13 @@ class TestTGAImage:
         uut = TGAImage(h=5, w=3, c=TGAColor(1, 2, 3, 4))
         assert uut.npdata.tolist() == [[TGAColor(1, 2, 3, 4)] * 3] * 5
 
-    @pytest.mark.skipif(bool(os.getenv("QUICK_CHECK")), reason="QUICK_CHECK")
     def test_rle_unrle(self: Self, subtests: pytest.Subtests, file_suite: GoldenFile) -> None:
         # Sometimes the raw RLE didn't match, but the re-expanded matches...
         TestTGAImage.skip_missing(file_suite.path)
         with subtests.test("Reading"):
             # Un-RLE the data...
             uut = _read_tga_file(file_suite.path)
+            assert str(uut) == f"{file_suite.width}x{file_suite.height}/{color_to_bpp(file_suite.color_type)}"
         with subtests.test("Extracting"):
             # Get the original data back out
             golden_data = uut._raw_payload
@@ -457,25 +633,37 @@ class TestTGAImage:
             len_test = len(test_data)
             len_golden = len(golden_data)
             assert len_test == len_golden
-            CHUNK_SIZE = 32
+            CHUNK_SIZE = 32  # ruff: ignore[non-lowercase-variable-in-function]
             for chunk in range(0, len(golden_data), CHUNK_SIZE):
                 # The first half is to let you see where the difference is in absolute terms
                 abs_loc = chunk * CHUNK_SIZE
-                assert abs_loc >= 0 and golden_data[chunk : chunk + CHUNK_SIZE] == test_data[chunk : chunk + CHUNK_SIZE]
+                assert abs_loc >= 0
+                assert golden_data[chunk : chunk + CHUNK_SIZE] == test_data[chunk : chunk + CHUNK_SIZE]
 
     @given(h_y=limited_xy(), w_x=limited_xy())
     def test_set_get(self: Self, h_y: tuple[int, int], w_x: tuple[int, int]) -> None:
         (h, y) = h_y
         (w, x) = w_x
         # Minimum 1x1 image:
-        h = h if h else 1
-        w = w if w else 1
+        h = h or 1
+        w = w or 1
         uut = TGAImage(w=w, h=h)
         color = TGAColor(1, 2, 3, 4)
         assert uut.get(0, 0) == uut.fill_value
         uut.set(x, y, color)
         assert uut.get(x, y) != uut.fill_value
         assert uut.get(x, y) == color
+
+    def test_variable_name(self: Self) -> None:
+        # Yes, exec() and eval() are "bad" but if I do anything else, the test becomes useless, e.g. putting them all
+        # into a dictionary ends up catching the iterator reference on the way out (like 'v' from 'k, v')
+        uuts: set[str] = set()
+        for _ in range(100):
+            random_name = "".join(random.choices(string.ascii_lowercase, k=5))  # ruff: ignore[suspicious-non-cryptographic-random-usage]
+            exec(f"test_{random_name} = TGAImage()")  # ruff: ignore[exec-builtin]
+            uuts.add(f"test_{random_name}")
+        for v in uuts:
+            assert eval(f"{v}._variable_name()") == v  # ruff: ignore[suspicious-eval-usage]
 
     def test_vertical_flip(self: Self) -> None:
         uut = self.gradient_fill()
@@ -488,7 +676,6 @@ class TestTGAImage:
                 golden[col, row] = c
         assert np.array_equal(uut.npdata, golden)
 
-    @pytest.mark.skipif(bool(os.getenv("QUICK_CHECK")), reason="QUICK_CHECK")
     @pytest.mark.parametrize("vflip", [False, True], ids=["no_vflip", "vflip"])
     @pytest.mark.parametrize("rle", [False, True], ids=["no_rle", "rle"])
     def test_write_file(
@@ -505,7 +692,6 @@ class TestTGAImage:
         assert uut.was_vflipped == vflip, f"Expected {vflip=} but got {uut.was_vflipped}"
         assert uut.was_rle == rle, f"Expected {rle=} but got {uut.was_rle}"
 
-    @pytest.mark.skipif(bool(os.getenv("QUICK_CHECK")), reason="QUICK_CHECK")
     @pytest.mark.skipif(plot_err is not None, reason="matplotlib wasn't imported")
     def test_plot(self: Self, file_suite: GoldenFile) -> None:
         TestTGAImage.skip_missing(file_suite.path)

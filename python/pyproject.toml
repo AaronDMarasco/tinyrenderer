@@ -13,10 +13,27 @@ dev = [
     "hypothesis>=6.164.0",
     "icecream>=2.2.0",
     "mypy>=2.3.0",
+    "pyrefly>=1.3.0",
     "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
     "ruff>=0.16.1",
     "snakeviz>=2.2.2",
     "ssort>=0.17.0",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    "return NotImplemented",
+]
+skip_empty = true
+sort = "-cover"
+
+[tool.coverage.run]
+branch = true
+omit = [
+    "model*.py",
+    "our_gl.py",
+    "*/tests/*",
 ]
 
 [tool.ruff]
@@ -28,21 +45,97 @@ preview = true
 
 [tool.ruff.lint]
 select = [
-    # pycodestyle
-    "E",
-    # Pyflakes
-    "F",
-    # pyupgrade
-    "UP",
-    # flake8-bugbear
-    "B",
-    # flake8-simplify
-    "SIM",
-    # isort
-    "I",
-    "RUF",
+    "A",  # Built-ins
+    "ANN",  # Annotations
+    "ARG",  # Unused arguments
+    "ASYNC",  # Not really in this code
+    "B",  # flake8-bugbear
+    "BLE",  # Blind exceptions
+    "C4",  # Comprehensions
+    "COM",  # Commas
+    "DTZ",  # Date/timezone
+    "E",  # pycodestyle
+    "EM",  # Err messages
+    "EXE",  # Executables
+    "F",  # Pyflakes
+    "FA",  # Future annotations
+    "FURB",  # "refurb" tool (upgrade hints)
+    "G",  # Logging (format)
+    "I",  # isort
+    "ICN",  # Import Conventions
+    "ISC",  # Implicit string concat
+    "LOG",  # Logging
+    "N",  # naming
+    "NPY",  # Numpy best practices
+    "PERF",  # Performance
+    "PIE",  # Flake8 PIE ?
+    "PL",  # pylint
+    "PT",  # Pytest styles
+    "PTH",  # Pathlib rocks
+    "PYI",  # Flake PYI (?)
+    "Q",  # Quotes
+    "RET",  # Returns
+    "RSE",  # Raise
+    "RUF",  # Ruff-specific
+    "S",  # Security (Bandit)
+    "SIM",  # flake8-simplify
+    "SLF",  # self usage
+    "SLOT",  # Slot usage
+    "T20",  # Ban print
+    "TC",  # Type checking
+    "TID",  # Tidy imports
+    "TRY",  # Clean up try blocks
+    "UP",  # pyupgrade
+    "W",  # pycodestyle
+    "YTT",  # Flake 2020
+    # "D",  # Documentation (pydocstyle)
+    # "DOC",  # Documentation (pydoclint)
+    # "TD",  # TODO
 ]
 preview = true
+ignore = [
+    "assert",
+    "blind-except",
+    "magic-value-comparison",
+    "missing-terminal-punctuation",
+    "missing-trailing-comma",
+    "missing-trailing-period",
+    "too-many-statements-in-try-clause",
+    # "docstring-missing-exception",
+    # "docstring-missing-returns",
+]
 
-# [tool.mypy]
-# plugins = ["numpy.typing.mypy_plugin", ]
+[tool.ruff.lint.per-file-ignores]
+"*lesson*" = [
+    # These files are not for public consumption and took a lot of stuff from CPP, so disable a lot:
+    "D",
+    "DOC",
+    "non-lowercase-variable-in-function",
+    "print",
+    "too-many-arguments",
+    "too-many-locals",
+    "too-many-positional-arguments",
+    ]
+"test_*.py" = [
+    "assert",
+    "no-self-use",
+    "private-member-access",
+    "pytest-raises-too-broad",  # We don't match EVERY one
+    "too-many-public-methods",
+]
+"lib/our_gl.py" = [
+    "global-statement",
+    "mixed-case-variable-in-global-scope",
+]
+"lib/tgaimage.py" = [
+    "invalid-class-name",
+    "invalid-function-name",
+    "magic-value-comparison",
+]
+
+[tool.pyrefly]
+min-severity = "warn"
+project-includes = [
+    "**/*.py*",
+    "**/*.ipynb",
+]
