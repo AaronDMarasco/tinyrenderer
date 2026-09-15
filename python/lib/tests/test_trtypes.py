@@ -423,27 +423,38 @@ class TestZBuffer:
                 else:
                     assert gold[x][y] == pytest.approx(uut[x][y])
 
-    def test_indexing(self: Self) -> None:
+    @pytest.mark.parametrize("thread_safe", [True, False], ids=["thread_safe", "not thread_safe"])
+    def test_indexing(self: Self, thread_safe: bool) -> None:  # ruff: ignore[too-many-branches]
         uut = ZBuffer(width=3, height=3)
-        # Classic assignment
-        for x in range(3):
-            for y in range(3):
-                uut.vals[x][y] = x + 3 * y
-        # Direct getitem call (read/confirm)
-        for x in range(3):
-            for y in range(3):
-                assert uut[x][y] == x + 3 * y
-        # Direct getitem assignment FAILS and should only change a local copy, leaving the original values
-        for x in range(3):
-            for y in range(3):
-                uut[x][y] = 5 * x + y
-        # Direct getitem call (read/confirm NO CHANGE)
-        for x in range(3):
-            for y in range(3):
-                assert uut[x][y] == x + 3 * y
-        # Lastly, trying to assign a full row should also fail:
-        with pytest.raises(TypeError, match=r"try_set()"):
-            uut[0] = 5
+        old_ts = trtypes.THREAD_SAFE
+        trtypes.THREAD_SAFE = thread_safe  # type: ignore[misc]  # I know it was declared Final...
+        try:
+            # Classic assignment (directly poking uut.vals; discouraged)
+            for x in range(3):
+                for y in range(3):
+                    uut.vals[x][y] = x + 3 * y
+            # Direct getitem call (read/confirm)
+            for x in range(3):
+                for y in range(3):
+                    assert uut[x][y] == x + 3 * y
+            # Direct getitem assignment FAILS (if thread_safe) and should only change a local copy, leaving the original
+            for x in range(3):
+                for y in range(3):
+                    uut[x][y] = 5 * x + y
+            if thread_safe:
+                # Direct getitem call (read/confirm NO CHANGE)
+                for x in range(3):
+                    for y in range(3):
+                        assert uut[x][y] == x + 3 * y
+            else:
+                for x in range(3):
+                    for y in range(3):
+                        assert uut[x][y] == 5 * x + y
+            # Lastly, trying to assign a full row should also fail:
+            with pytest.raises(TypeError, match=r"try_set()"):
+                uut[0] = 5
+        finally:
+            trtypes.THREAD_SAFE = old_ts  # type: ignore[misc]  # I know it was declared Final...
 
     @pytest.mark.parametrize("thread_safe", [True, False], ids=["thread_safe", "not thread_safe"])
     def test_locks(self: Self, thread_safe: bool) -> None:
