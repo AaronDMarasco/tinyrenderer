@@ -7,7 +7,7 @@ clear
 # Skip some python self tests:
 # export QUICK_CHECK=x
 set -e
-uv --preview-features format format --version "0.16.6"
+uv --preview-features format format --version "0.16.8"
 set +e
 uv run ssort --check --diff
 uv run ruff check .
