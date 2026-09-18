@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import copy
 import itertools
+import logging
 import math
 import threading
 from abc import ABC, abstractmethod
@@ -19,6 +20,9 @@ from .tgaimage import TGAColor, TGAImage
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+top_logger = logging.getLogger(__name__)
+zb_logger = logging.getLogger(f"{__name__}.ZBuffer")
 
 type Matrix2f = numpy.ndarray[tuple[Literal[2], Literal[2]], numpy.dtype[numpy.float64]]
 type Matrix3f = numpy.ndarray[tuple[Literal[3], Literal[3]], numpy.dtype[numpy.float64]]
@@ -52,14 +56,18 @@ class ZBuffer:
     _cm: contextlib.AbstractContextManager = field(init=False)
 
     def __init__(self: Self, *, width: int, height: int) -> None:
+        assert width > 0
+        assert height > 0
         self.vals = cast(
             "list[list[float]]",
             numpy.full((width, height), numpy.nan, dtype=float).tolist(),
         )
         if THREAD_SAFE:
             self._cm = threading.Lock()
+            zb_logger.debug("%s in thread-safe mode", self)
         else:
             self._cm = contextlib.nullcontext()
+            zb_logger.debug("%s NOT in thread-safe mode", self)
 
     def __deepcopy__(self: Self, memo: dict) -> ZBuffer:
         # Cannot copy lock
@@ -72,6 +80,14 @@ class ZBuffer:
         """Dump a straight array of our values"""
         return list(itertools.chain.from_iterable(self.vals))
 
+    @property
+    def height(self: Self) -> int:
+        return len(self.vals[0])
+
+    @property
+    def width(self: Self) -> int:
+        return len(self.vals)
+
     def fix_nan(self: Self, val: float) -> None:
         """Set all NaN values to a given value"""
 
@@ -83,6 +99,9 @@ class ZBuffer:
     def try_set(self: Self, x: int, y: int, val: float) -> bool:
         """Atomic-ish set and get if yours was written"""
         with self._cm:
+            if not (0 <= x < self.width) or not (0 <= y < self.height):
+                zb_logger.warning("Ignoring write to (x, y) = (%d, %d) (max %d, %d)", x, y, self.width, self.height)
+                return False
             if val <= self.vals[x][y]:
                 return False
             self.vals[x][y] = val
@@ -119,6 +138,9 @@ class ZBuffer:
     def __setitem__(self: Self, _idx: int, _val: object) -> None:
         err_msg = "Use try_set() to write with locks"
         raise TypeError(err_msg)
+
+    def __str__(self: Self) -> str:
+        return f"ZBuffer@{hex(id(self))} ({self.width}x{self.height})"
 
 
 @dataclass(frozen=True, slots=True)
