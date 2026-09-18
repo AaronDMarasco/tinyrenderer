@@ -53,7 +53,10 @@ def lookat(eye: vec3, center: vec3, up: vec3) -> None:
     ])
     # fmt: on
     global model_view_IT
-    model_view_IT = np.linalg.inv(model_view.T)
+    try:
+        model_view_IT = np.linalg.inv(model_view.T)
+    except np.linalg.LinAlgError:  # "Singular matrix" because the columns matched
+        model_view_IT = np.linalg.pinv(model_view.T)
 
 
 def init_perspective(f: float) -> None:
@@ -88,9 +91,11 @@ def init_viewport(x: int, y: int, width: int, height: int) -> None:
 # fmt: on
 
 
-def init_zbuffer(width: int, height: int) -> None:
+def init_zbuffer(width: int, height: int, *, init_val: float | None = None) -> None:
     global z_buffer
     z_buffer = ZBuffer(width=width, height=height)  # CPP inits to -1000
+    if init_val is not None:
+        z_buffer.fix_nan(init_val)
 
 
 def rasterize(
@@ -99,9 +104,9 @@ def rasterize(
     framebuffer: TGAImage,
 ) -> None:
     ndc: Final[list[vec4]] = [
-        clip[0] / clip[0].w,
-        clip[1] / clip[1].w,
-        clip[2] / clip[2].w,
+        clip[0] / (clip[0].w + 1e-9),
+        clip[1] / (clip[1].w + 1e-9),
+        clip[2] / (clip[2].w + 1e-9),
     ]  # normalized device coordinates
     screen: Final[list[vec2]] = [
         vec4.from_np(view_port @ ndc[0]).xy,

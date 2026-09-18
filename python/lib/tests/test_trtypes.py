@@ -472,6 +472,12 @@ class TestZBuffer:
         finally:
             trtypes.THREAD_SAFE = old_ts  # type: ignore[misc]  # I know it was declared Final...
 
+    @given(h=st.integers(1, 512), w=st.integers(1, 512))
+    def test_size(self: Self, h: int, w: int) -> None:
+        uut = ZBuffer(width=w, height=h)
+        assert uut.width == w
+        assert uut.height == h
+
     @pytest.mark.parametrize("allow_nan", [True, False], ids=["allow_nan=True", "allow_nan=False"])
     def test_to_tga_1x1(self: Self, allow_nan: bool) -> None:
         uut = ZBuffer(width=1, height=1)
