@@ -5,6 +5,8 @@ if [[ ! -e ../.git/config ]]; then
 fi
 read -r -d '' FILE_LIST << 'END'
 ../README.md
+AGENTS.md
+BRANCHES.md
 .gitattributes
 .gitignore
 check
