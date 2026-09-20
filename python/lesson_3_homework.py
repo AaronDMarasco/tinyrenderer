@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from typing import Final
 
-from lib.tgaimage import TGAColor, TGAImage
+from lib.tgaimage import Format, TGAColor, TGAImage
 
 
 def _signed_triangle_area(ax: int, ay: int, bx: int, by: int, cx: int, cy: int) -> float:
@@ -48,7 +48,7 @@ def main() -> int:
     width: Final = 64
     height: Final = 64
 
-    framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
+    framebuffer = TGAImage(width, height, Format.RGB)
     triangle_barycentric_lesson_3_homework((17, 4, 13), (55, 39, 128), (23, 59, 255), framebuffer)
     framebuffer.write_tga_file("framebuffer.tga")
 

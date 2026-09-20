@@ -4,7 +4,7 @@ import sys
 from typing import Final
 
 from lib.model import Model
-from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
+from lib.tgaimage import Format, TGAColor, TGAColor_t, TGAImage
 
 red: Final = TGAColor(0, 0, 255, 255).resize(bpp=3)
 
@@ -40,7 +40,7 @@ def main() -> int:
     width_center: Final[int] = width // 2 - 1
     height_center: Final[int] = height // 2 - 1
 
-    framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
+    framebuffer = TGAImage(width, height, Format.RGB)
 
     model = Model.from_file("../obj/diablo3_pose/diablo3_pose.obj")
 

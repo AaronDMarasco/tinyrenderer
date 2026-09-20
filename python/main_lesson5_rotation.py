@@ -8,7 +8,7 @@ from typing import Final
 import numpy as np
 
 from lib.model import Model
-from lib.tgaimage import TGAColor_t, TGAImage
+from lib.tgaimage import Format, TGAColor_t, TGAImage
 from lib.trtypes import vec3
 from main_lesson4_triangle import triangle_barycentric_lesson_4
 
@@ -57,8 +57,8 @@ def main() -> int:
     for fname in find_output.split():
         basename = Path(fname).name[:-4]
         try:
-            framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
-            z_buffer = TGAImage(width, height, TGAImage.Format.GRAYSCALE)
+            framebuffer = TGAImage(width, height, Format.RGB)
+            z_buffer = TGAImage(width, height, Format.GRAYSCALE)
             model = Model.from_file(fname)
             for face in model.faces:
                 idx = (face[0].vertex, face[1].vertex, face[2].vertex)

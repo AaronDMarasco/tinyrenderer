@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from typing import Final
 
-from lib.tgaimage import TGAColor_t, TGAImage, blue, green, red, white, yellow
+from lib.tgaimage import Format, TGAColor_t, TGAImage, blue, green, red, white, yellow
 
 
 def line(ax: int, ay: int, bx: int, by: int, framebuffer: TGAImage, color: TGAColor_t) -> None:
@@ -38,7 +38,7 @@ def main() -> int:
     width: Final = 64
     height: Final = 64
 
-    framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
+    framebuffer = TGAImage(width, height, Format.RGB)
 
     ax = 7
     ay = 3

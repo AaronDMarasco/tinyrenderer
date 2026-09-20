@@ -7,9 +7,10 @@ from typing import Final, Self
 
 import numpy as np
 
+import lib.trtypes as trt
 from lib import our_gl
 from lib.model_v2 import ModelV2
-from lib.tgaimage import TGAColor, TGAColor_t, TGAImage, black
+from lib.tgaimage import Format, TGAColor, TGAColor_t, TGAImage, black
 from lib.trtypes import Triangle, ZBuffer, vec2, vec3, vec4
 
 PLOT: Final[bool] = False
@@ -45,10 +46,10 @@ class Lesson9Shader(our_gl.IShader):
         self.color: TGAColor_t = TGAColor()
         # The list() wrapping is to keep type checkers happy
         self.varying_uv = list(
-            vec2.new_zeros(3)
+            trt.vec2_new_zeros(3)
         )  # triangle uv coordinates, written by the vertex shader, read by the fragment shader
-        self.varying_nrm = list(vec4.new_nans(3))  # normal per vertex to be interpolated by the fragment shader
-        self.tri = list(vec4.new_nans(3))  # Triangle in eye coordinates
+        self.varying_nrm = list(trt.vec4_new_nans(3))  # normal per vertex to be interpolated by the fragment shader
+        self.tri = list(trt.vec4_new_nans(3))  # Triangle in eye coordinates
         self.sun_vector_l: vec4 = vec4.from_np(our_gl.model_view @ vec4.from_vec3(sun, w=0)).normalized
         self.diffuse_weight: float = diffuse_weight
         self.specular_shine: int = specular_shine
@@ -109,8 +110,8 @@ class Lesson9Shader(our_gl.IShader):
         # Get the color from the "spec" file
         spec_color: TGAColor_t = (self.model.ext_color("spec", color_sample) / 3) * specular
 
-        if spec_color.bytespp == TGAImage.Format.GRAYSCALE:
-            spec_color = TGAColor(spec_color.b, spec_color.b, spec_color.b, bpp=TGAImage.Format.RGB)
+        if spec_color.bytespp == Format.GRAYSCALE:
+            spec_color = TGAColor(spec_color.b, spec_color.b, spec_color.b, bpp=Format.RGB)
 
         # Weighted diffuse should be 0..1
         weighted_diffuse = diffuse * self.diffuse_weight
@@ -149,7 +150,7 @@ def main() -> int:
             logger.debug("Processing %s...", basename)
             path_name = fname.split("/")[2]
             if path_name not in framebuffers:
-                framebuffers[path_name] = TGAImage(w=width, h=height, bpp=TGAImage.Format.RGB, c=black)
+                framebuffers[path_name] = TGAImage(w=width, h=height, bpp=Format.RGB, c=black)
             framebuffer = framebuffers[path_name]
             if path_name not in zbuffers:
                 our_gl.init_zbuffer(width, height)  # New zbuffer per image

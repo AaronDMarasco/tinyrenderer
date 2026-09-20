@@ -7,7 +7,7 @@ from typing import Final
 
 from lesson_2_triangles import triangle
 from lib.model import Model
-from lib.tgaimage import TGAColor_t, TGAImage, uint8_t
+from lib.tgaimage import Format, TGAColor_t, TGAImage, uint8_t
 
 # logging.getLogger('lib.model').setLevel(logging.INFO)
 
@@ -33,7 +33,7 @@ def main() -> int:
     for fname in find_output.split():
         basename = Path(fname).name[:-4]
         try:
-            framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
+            framebuffer = TGAImage(width, height, Format.RGB)
             model = Model.from_file(fname)
             for face in model.faces:
                 idx = (face[0].vertex, face[1].vertex, face[2].vertex)

@@ -4,7 +4,7 @@ import sys
 from typing import Final
 
 from lesson_2_triangles import line
-from lib.tgaimage import TGAColor, TGAColor_t, TGAImage, blue
+from lib.tgaimage import Format, TGAColor, TGAColor_t, TGAImage, blue
 
 
 def _signed_triangle_area(ax: int, ay: int, bx: int, by: int, cx: int, cy: int) -> float:
@@ -70,10 +70,10 @@ def main() -> int:
     height: Final = 64
 
     if False:
-        framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
+        framebuffer = TGAImage(width, height, Format.RGB)
         triangle_scanlines((17, 4), (55, 39), (23, 59), framebuffer, blue)
     else:
-        framebuffer = TGAImage(width, height, TGAImage.Format.GRAYSCALE)
+        framebuffer = TGAImage(width, height, Format.GRAYSCALE)
         triangle_barycentric_lesson_3((17, 4, 13), (55, 39, 128), (23, 59, 255), framebuffer)
     framebuffer.write_tga_file("framebuffer.tga")
 

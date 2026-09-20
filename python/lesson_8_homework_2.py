@@ -7,7 +7,7 @@ from typing import Final, Self
 
 from lib import our_gl
 from lib.model_v2 import ModelV2
-from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
+from lib.tgaimage import Format, TGAColor, TGAColor_t, TGAImage
 from lib.trtypes import Triangle, vec2, vec3, vec4
 
 width: Final = 1024
@@ -100,7 +100,7 @@ def main() -> int:
         basename = Path(fname).name[:-4]
         try:
             logger.debug("Processing %s...", basename)
-            framebuffer = TGAImage(w=width, h=height, bpp=TGAImage.Format.GRAYSCALE, c=TGAColor(255 // 2))
+            framebuffer = TGAImage(w=width, h=height, bpp=Format.GRAYSCALE, c=TGAColor(255 // 2))
             our_gl.init_zbuffer(width, height)  # New zbuffer per image
             model = ModelV2.from_file(fname)
             shader = PhongNormalMappingShader(model, sun=sun, specular_shine=35)

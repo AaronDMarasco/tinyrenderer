@@ -5,7 +5,7 @@ from typing import Final
 
 import numpy as np
 
-from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
+from lib.tgaimage import Format, TGAColor, TGAColor_t, TGAImage
 
 
 def line(ax: int, ay: int, bx: int, by: int, framebuffer: TGAImage, color: TGAColor_t) -> None:
@@ -33,7 +33,7 @@ def main() -> int:
     width: Final = 64
     height: Final = 64
 
-    framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
+    framebuffer = TGAImage(width, height, Format.RGB)
 
     _CPP_SOURCE = """
     std::srand(std::time({}));

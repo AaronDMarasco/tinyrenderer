@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from typing import Final
 
-from lib.tgaimage import TGAColor_t, TGAImage, green, red, white
+from lib.tgaimage import Format, TGAColor_t, TGAImage, green, red, white
 
 
 def line(
@@ -65,7 +65,7 @@ def main() -> int:
     width: Final = 128
     height: Final = 128
 
-    framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
+    framebuffer = TGAImage(width, height, Format.RGB)
     triangle((7, 45), (35, 100), (45, 60), framebuffer, red)
     triangle((120, 35), (90, 5), (45, 110), framebuffer, white, fill=True)
     triangle((115, 83), (80, 90), (85, 120), framebuffer, green)

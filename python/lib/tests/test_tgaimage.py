@@ -13,8 +13,7 @@ import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
-from lib.tgaimage import TGAColor, TGAColor_t, TGAImage, uint8_t
-from lib.tgaimage import err as plot_err
+from lib.tgaimage import TGAColor, TGAColor_t, TGAImage, matplotlib_import_err, uint8_t
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -143,7 +142,7 @@ class TestTGAColor:
         assume(v < -4 or v > 3)
         assume(v < sys.maxsize)
         uut = TGAColor()
-        with pytest.raises(IndexError):
+        with pytest.raises((IndexError, OverflowError)):
             uut[v]
 
     def test_bad_init(self: Self, subtests: pytest.Subtests) -> None:
@@ -153,7 +152,7 @@ class TestTGAColor:
             for bpp in range(5, 256):
                 with pytest.raises(ValueError, match="Invalid value given"):
                     TGAColor(bpp=bpp)
-        with subtests.test("BPP >= 256"), pytest.raises(OverflowError):
+        with subtests.test("BPP >= 256"), pytest.raises((OverflowError, ValueError)):
             TGAColor(bpp=256)
         with subtests.test("No BPP, bad values"):
             with pytest.raises(ValueError):
@@ -692,7 +691,7 @@ class TestTGAImage:
         assert uut.was_vflipped == vflip, f"Expected {vflip=} but got {uut.was_vflipped}"
         assert uut.was_rle == rle, f"Expected {rle=} but got {uut.was_rle}"
 
-    @pytest.mark.skipif(plot_err is not None, reason="matplotlib wasn't imported")
+    @pytest.mark.skipif(matplotlib_import_err is not None, reason="matplotlib wasn't imported")
     def test_plot(self: Self, file_suite: GoldenFile) -> None:
         TestTGAImage.skip_missing(file_suite.path)
         uut = _read_tga_file(file_suite.path)

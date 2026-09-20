@@ -6,7 +6,7 @@ from typing import Final, Self
 
 from lib import our_gl
 from lib.model import Model
-from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
+from lib.tgaimage import Format, TGAColor, TGAColor_t, TGAImage
 from lib.trtypes import Triangle, vec3, vec4
 
 width: Final = 800
@@ -100,7 +100,7 @@ def main() -> int:
     for fname in find_output.split():
         basename = Path(fname).name[:-4]
         try:
-            framebuffer = TGAImage(width, height, TGAImage.Format.GRAYSCALE, TGAColor(255 // 2))
+            framebuffer = TGAImage(width, height, Format.GRAYSCALE, TGAColor(255 // 2))
             our_gl.init_zbuffer(width, height)  # New zbuffer per image
             model = Model.from_file(fname)
             shader = PhongShader(model, sun=sun, specular_shine=35)

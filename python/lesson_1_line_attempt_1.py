@@ -5,7 +5,7 @@ from typing import Final
 
 import numpy as np
 
-from lib.tgaimage import TGAColor_t, TGAImage, blue, green, red, white, yellow
+from lib.tgaimage import Format, TGAColor_t, TGAImage, blue, green, red, white, yellow
 
 _CPP_SOURCE = """
 #include <cmath>
@@ -60,7 +60,7 @@ def main() -> int:
     width: Final = 64
     height: Final = 64
 
-    framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
+    framebuffer = TGAImage(width, height, Format.RGB)
 
     ax = 7
     ay = 3

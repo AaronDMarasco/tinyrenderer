@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Final
 import numpy as np
 
 from lib.model import Model
-from lib.tgaimage import TGAColor_t, TGAImage
+from lib.tgaimage import Format, TGAColor_t, TGAImage
 from lib.trtypes import Matrix3f, Matrix4f, ZBuffer, vec2, vec3, vec4
 
 if TYPE_CHECKING:
@@ -140,7 +140,7 @@ def main() -> int:
     for fname in find_output.split():
         basename = Path(fname).name[:-4]
         try:
-            framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
+            framebuffer = TGAImage(width, height, Format.RGB)
             z_buffer = ZBuffer(width=width, height=height)
             model = Model.from_file(fname)
             for face in model.faces:

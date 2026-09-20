@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from typing import Final
 
-from lib.tgaimage import TGAImage, white
+from lib.tgaimage import Format, TGAImage, white
 
 _CPP_SOURCE = """
 constexpr TGAColor white   = {255, 255, 255, 255}; // attention, BGRA order
@@ -35,7 +35,7 @@ def main() -> int:
     width: Final = 64
     height: Final = 64
 
-    framebuffer = TGAImage(width, height, TGAImage.Format.RGB)
+    framebuffer = TGAImage(width, height, Format.RGB)
 
     ax = 7
     ay = 3

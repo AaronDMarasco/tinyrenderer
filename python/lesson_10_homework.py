@@ -5,11 +5,14 @@ import logging
 import sys
 from typing import Final, Self, override
 
+logging.getLogger("numba").setLevel("INFO")
 import numpy as np
+from numba import njit, objmode, prange
 
+import lib.trtypes as trt
 from lib import our_gl
 from lib.model_v2 import ModelV2
-from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
+from lib.tgaimage import Format, TGAColor, TGAColor_t, TGAImage
 from lib.trtypes import Matrix4f, Triangle, vec2, vec3, vec4
 
 PLOT: Final[bool] = True
@@ -20,7 +23,7 @@ height: Final = 320
 shadow_w: Final = width * 5
 shadow_h: Final = height * 5
 
-eye: Final = vec3(-1, 0, 2)  # Camera position
+eye: Final[vec3] = vec3(-1, 0, 2)  # Camera position
 center: Final = vec3(0, 0, 0)  # Camera direction
 up: Final = vec3(0, 1, 0)  # Camera up vector
 light: Final = vec3(1, 1, 1)  # Light location
@@ -58,9 +61,9 @@ class Lesson10Shader(our_gl.IShader):
         assert "spec" in self.model.ext
         # The list() wrapping is to keep type checkers happy
         # varying_uv: triangle uv coordinates, written by the vertex shader, read by the fragment shader
-        self.varying_uv = list(vec2.new_zeros(3))
-        self.varying_nrm = list(vec4.new_nans(3))  # normal per vertex to be interpolated by the fragment shader
-        self.tri = list(vec4.new_nans(3))  # Triangle in eye coordinates
+        self.varying_uv = list(trt.vec2_new_zeros(3))
+        self.varying_nrm = list(trt.vec4_new_nans(3))  # normal per vertex to be interpolated by the fragment shader
+        self.tri = list(trt.vec4_new_nans(3))  # Triangle in eye coordinates
         self.sun_vector_l: Final[vec4] = vec4.from_np(our_gl.model_view @ vec4.from_vec3(sun, w=0)).normalized
 
     def vertex(self: Self, face: int, vert: int) -> vec4:
@@ -129,6 +132,7 @@ class Lesson10Shader(our_gl.IShader):
         return (False, diff_color * final_scaling)  # do not discard the pixel
 
 
+@njit(parallel=True)
 def main() -> int:  # ruff: ignore[too-many-branches, too-many-statements]
     # Going to merge all these files into a single output at the end
     input_files = """
@@ -140,28 +144,29 @@ def main() -> int:  # ruff: ignore[too-many-branches, too-many-statements]
     our_gl.init_perspective((eye - center).norm)  # build global perspective
     our_gl.init_viewport(width // 16, height // 16, width * 7 // 8, height * 7 // 8)  # build global view_port
 
-    framebuffer = TGAImage(w=width, h=height, bpp=TGAImage.Format.RGBA, c=TGAColor(177, 195, 209, 255))
+    framebuffer = TGAImage(w=width, h=height, bpp=Format.RGBA, c=TGAColor(177, 195, 209, 255))
     our_gl.init_zbuffer(width, height)
 
     for fname in input_files.split():
-        try:
-            logger.debug("Processing %s...", fname)
+        if True:  # try:
+            with objmode():
+                logger.debug("Processing %s...", fname)
             model = ModelV2.from_file(fname)
             shader = Lesson10Shader(model, sun=light)
-            logger.debug("Rendering %d faces...", len(model.faces))
+            # logger.debug("Rendering %d faces...", len(model.faces))
             for face, _ in enumerate(model.faces):
-                if face and face % 250 == 0:
-                    logger.debug("%d...", face)
+                # if face and face % 250 == 0:
+                # logger.debug("%d...", face)
                 clip: Triangle = (  # assemble the primitive
                     shader.vertex(face, 0),
                     shader.vertex(face, 1),
                     shader.vertex(face, 2),
                 )
                 our_gl.rasterize(clip, shader, framebuffer)  # rasterize the primitive
-        except Exception as err:
-            logger.exception("Could not process %s", fname)
-            if DIE_ON_FAILURE:
-                raise RuntimeError from err
+        # # except Exception:  #  as err:
+        # #     logger.exception("Could not process %s", fname)
+        # #     if DIE_ON_FAILURE:
+        # #         raise  # RuntimeError from err
 
     # New shading part
     # our_gl.z_buffer.fix_nan(-1000)
@@ -173,28 +178,29 @@ def main() -> int:  # ruff: ignore[too-many-branches, too-many-statements]
     our_gl.init_perspective((eye - center).norm)  # build global perspective
     our_gl.init_viewport(shadow_w // 16, shadow_h // 16, shadow_w * 7 // 8, shadow_h * 7 // 8)  # build global view_port
 
-    trash = TGAImage(w=shadow_w, h=shadow_h, bpp=TGAImage.Format.RGBA, c=TGAColor(177, 195, 209, 255))
+    trash = TGAImage(w=shadow_w, h=shadow_h, bpp=Format.RGBA, c=TGAColor(177, 195, 209, 255))
     our_gl.init_zbuffer(shadow_w, shadow_h)
 
     for fname in input_files.split():
-        try:
-            logger.debug("(Shadow) Processing %s...", fname)
+        if True:  # try:
+            with objmode():
+                logger.debug("(Shadow) Processing %s...", fname)
             model = ModelV2.from_file(fname)
             b_shader = BlankShader(model)
-            logger.debug("(Shadow) Rendering %d faces...", len(model.faces))
+            # logger.debug("(Shadow) Rendering %d faces...", len(model.faces))
             for face, _ in enumerate(model.faces):
-                if face and face % 250 == 0:
-                    logger.debug("(Shadow) %d...", face)
+                # if face and face % 250 == 0:
+                # logger.debug("(Shadow) %d...", face)
                 clip = (  # assemble the primitive
                     b_shader.vertex(face, 0),
                     b_shader.vertex(face, 1),
                     b_shader.vertex(face, 2),
                 )
                 our_gl.rasterize(clip, b_shader, trash)
-        except Exception as err:
-            logger.exception("Could not process %s", fname)
-            if DIE_ON_FAILURE:
-                raise RuntimeError from err
+                # #except Exception:  # as err:
+                # #    logger.exception("Could not process %s", fname)
+                # #    if DIE_ON_FAILURE:
+                # #        raise  # RuntimeError from err
 
     trash.write_tga_file("shadowmap.tga")
     trash.plot(PLOT)
@@ -202,14 +208,14 @@ def main() -> int:  # ruff: ignore[too-many-branches, too-many-statements]
 
     n_matrix: Final[Matrix4f] = our_gl.view_port @ our_gl.perspective @ our_gl.model_view
 
-    logger.debug("Post-processing")
+    # logger.debug("Post-processing")
     mask: np.ndarray = np.zeros(shape=(width, height), dtype=bool)
     # assert not any(mask.ravel())
 
-    for x in range(width):
-        if x and x % 100 == 0:
-            logger.debug("%d/%d...", x, width)
-        for y in range(height):
+    for x in prange(width):
+        # if x and x % 100 == 0:
+        # logger.debug("%d/%d...", x, width)
+        for y in prange(height):
             fragment: vec4 = vec4.from_np(m_matrix @ vec4(x, y, zbuffer_copy[x][y], 1))
             q: vec4 = vec4.from_np(n_matrix @ fragment)
             p: vec3 = q.xyz / q.w
@@ -220,19 +226,20 @@ def main() -> int:  # ruff: ignore[too-many-branches, too-many-statements]
             )
             mask[x][y] = lit
 
-    logger.debug("Wrote %d masks", width * height)
-    mask_img = TGAImage(w=width, h=height, bpp=TGAImage.Format.GRAYSCALE)
+    with objmode():
+        logger.debug("Wrote %d masks", width * height)
+    mask_img = TGAImage(w=width, h=height, bpp=Format.GRAYSCALE)
     mono_black: Final = TGAColor(0, bpp=1)
     mono_white: Final = TGAColor(255, bpp=1)
-    for x in range(width):
-        for y in range(height):
+    for x in prange(width):
+        for y in prange(height):
             mask_img.set(x, y, mono_black if mask[x][y] else mono_white)
 
     mask_img.write_tga_file("mask.tga")
     mask_img.plot(PLOT)
 
-    for x in range(width):
-        for y in range(height):
+    for x in prange(width):
+        for y in prange(height):
             if mask[x][y]:
                 continue
             c = framebuffer.get(x, y)

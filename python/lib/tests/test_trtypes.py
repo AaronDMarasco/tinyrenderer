@@ -10,15 +10,17 @@ import numpy as np
 import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
+from numba import TypingError
 
+import lib.trtypes as trt
 from lib import trtypes  # for THREAD_SAFE direct manipulation
 from lib.tgaimage import TGAColor
-from lib.trtypes import Matrix2f, Matrix3f, Matrix4f, MatrixLike, ZBuffer, _VectorBase, empty_matrix, vec2, vec3, vec4
+from lib.trtypes import Matrix2f, Matrix3f, Matrix4f, MatrixLike, ZBuffer, vec2, vec3, vec4
 
 reasonable_integers = st.integers(min_value=-(2**31), max_value=2**31 - 1)
 reasonable_floats = st.floats(allow_nan=False, allow_infinity=False, width=32)
 
-type VecParam = tuple[int, type[_VectorBase]]
+type VecParam = tuple[int, type[trt._VectorBase]]
 
 
 class TestMatrix:
@@ -26,14 +28,22 @@ class TestMatrix:
     def test_empty_matrix(self: Self, matrix_size: int) -> None:
         if matrix_size in {1, 5}:
             with pytest.raises(ValueError):
-                _ = empty_matrix(matrix_size)  # type: ignore[call-overload]
+                _ = trt.empty_matrix(matrix_size)  # type: ignore[call-overload]
             return
-        uut = empty_matrix(matrix_size)  # type: ignore[call-overload]
+        uut = trt.empty_matrix(matrix_size)  # type: ignore[call-overload]
         assert sum(v for v in uut.ravel()) == 0
 
 
 @pytest.mark.parametrize("vec_param", [(2, vec2), (3, vec3), (4, vec4)], ids=["vec2", "vec3", "vec4"])
 class TestVector:
+    # Historical Note: Many of the assertions could be cleaned up; e.g. the non-numba version would assert
+    @classmethod
+    def setup_class(cls) -> None:
+        # Have numba do it's precompiling now (construction, division, etc.)
+        _ = trt.vec2_new_zero() / 1
+        _ = trt.vec3_new_zero() / 1
+        _ = trt.vec4_new_zero() / 1
+
     @given(vec_in=st.lists(reasonable_integers, min_size=4, max_size=4))
     def test_to_from_numpy(self: Self, vec_in: list[int], vec_param: VecParam) -> None:
         width, class_ = vec_param
@@ -61,7 +71,7 @@ class TestVector:
     def test_from_numpy_bad_type(self: Self, vec_param: VecParam) -> None:
         width, class_ = vec_param
 
-        with pytest.raises(AssertionError):
+        with pytest.raises((AssertionError, TypingError)):
             class_.from_np([0] * width)  # type: ignore[arg-type]
 
     @given(vec_in=st.lists(reasonable_integers, min_size=4, max_size=4))
@@ -69,17 +79,17 @@ class TestVector:
         width, class_ = vec_param
         vec_in = vec_in[:width]
 
-        with pytest.raises(AssertionError):
+        with pytest.raises((AssertionError, ValueError)):
             class_.from_np(np.array([]))
-        with pytest.raises(AssertionError):
+        with pytest.raises((AssertionError, TypingError)):
             class_.from_np(np.array([vec_in, vec_in], dtype=float))
 
-    @given(vec_in=st.lists(reasonable_integers, min_size=4, max_size=4))
+    @given(vec_in=st.lists(st.characters(categories=("Lu",)), min_size=4, max_size=4))
     def test_from_numpy_wrong_type(self: Self, vec_in: list[int], vec_param: VecParam) -> None:
         width, class_ = vec_param
 
-        with pytest.raises(AssertionError):
-            class_.from_np(np.array(vec_in[:width], dtype=int))
+        with pytest.raises((AssertionError, TypingError)):
+            class_.from_np(np.array(vec_in[:width], dtype=np.str_))
 
     @given(in_data=st.lists(reasonable_floats, min_size=8, max_size=8))
     def test_add(self: Self, in_data: list[float], vec_param: VecParam) -> None:
@@ -114,19 +124,24 @@ class TestVector:
             assert res.w == pytest.approx(in_data[3] - in_data[width + 3])
 
     @given(in_data=st.lists(reasonable_floats, min_size=5, max_size=5).filter(lambda lst: lst[-1] != 0))
-    @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_scaling(self: Self, *, in_data: list[float], subtests: pytest.Subtests, vec_param: VecParam) -> None:
         width, class_ = vec_param
         uut = class_(*in_data[:width])
         scaling = in_data[-1]
         with subtests.test(f"Multiply/{scaling}"):
-            tval = uut * scaling
-            assert tval.array == pytest.approx([v * scaling for v in in_data[:width]])
+            # First ensure it ignores a standard attempt
+            with pytest.raises(NotImplementedError, match=rf"Use np.dot\(vec{width}.np"):
+                _ = uut * scaling
+            uut.scale(scaling)
+            assert uut.array == pytest.approx([v * scaling for v in in_data[:width]])
         with subtests.test(f"Divide/{scaling}"):
+            uut = class_(*in_data[:width])
             tval = uut / scaling
             assert tval.array == pytest.approx([v / scaling for v in in_data[:width]])
 
     @given(in_data=st.lists(reasonable_floats, min_size=8, max_size=8))
+    @settings(deadline=None)
     def test_cross_product(self: Self, in_data: list[float], vec_param: VecParam) -> None:
         width, class_ = vec_param
         if width != 3:
@@ -134,7 +149,7 @@ class TestVector:
         assert class_ is vec3
         uut1 = class_(*in_data[:width])
         uut2 = class_(*in_data[width : 2 * width])
-        expected = np.cross(uut1, uut2)  # Also exercises __array__ calls
+        expected = np.cross(uut1.np, uut2.np)
         assert uut1.cross(uut2).array == pytest.approx(expected)
 
     @given(in_data=st.lists(reasonable_floats, min_size=8, max_size=8))
@@ -143,7 +158,7 @@ class TestVector:
         uut1 = class_(*in_data[:width])
         uut2 = class_(*in_data[width : 2 * width])
 
-        res = uut1 * uut2
+        res = np.dot(uut1.np, uut2.np)
         expected = uut1.x * uut2.x + uut1.y * uut2.y
         if width >= 3:
             assert isinstance(uut1, (vec3, vec4))
@@ -315,33 +330,33 @@ template<int R1,int C1,int C2>mat<R1,C2> operator*(const mat<R1,C1>& lhs, const 
                 assert expected[r][c] == pytest.approx(res[r][c])
 
     def test_new_nan(self, vec_param: VecParam) -> None:
-        _, class_ = vec_param
-        uut1 = class_.new_nan()
-        uut2 = class_.new_nan()
+        width, _ = vec_param
+        uut1 = getattr(trt, f"vec{width}_new_nan")()
+        uut2 = getattr(trt, f"vec{width}_new_nan")()
         assert all(isnan(v) for v in uut1.array)
         assert uut1 is not uut2
 
     @given(list_len=st.integers(min_value=1, max_value=1000))
     def test_new_nans(self, *, list_len: int, vec_param: VecParam) -> None:
-        _, class_ = vec_param
-        uut = class_.new_nans(list_len)
+        width, _ = vec_param
+        uut = getattr(trt, f"vec{width}_new_nans")(list_len)
         for i in range(1, list_len):
             assert uut[0] is not uut[i]
         for val in uut:
             assert all(isnan(v) for v in val.array)
 
     def test_new_zero(self, vec_param: VecParam) -> None:
-        _, class_ = vec_param
-        uut1 = class_.new_zero()
-        uut2 = class_.new_zero()
+        width, _ = vec_param
+        uut1 = getattr(trt, f"vec{width}_new_zero")()
+        uut2 = getattr(trt, f"vec{width}_new_zero")()
         assert uut1 == uut2
         assert uut1 is not uut2
         assert sum(uut1.array) == sum(uut2.array) == 0
 
     @given(list_len=st.integers(min_value=1, max_value=1000))
     def test_new_zeros(self, *, list_len: int, vec_param: VecParam) -> None:
-        _, class_ = vec_param
-        uut = class_.new_zeros(list_len)
+        width, _ = vec_param
+        uut = getattr(trt, f"vec{width}_new_zeros")(list_len)
         for i in range(1, list_len):
             assert uut[0] == uut[i]
             assert uut[0] is not uut[i]
@@ -352,14 +367,17 @@ template<int R1,int C1,int C2>mat<R1,C2> operator*(const mat<R1,C1>& lhs, const 
     def test_xyz(self, *, in_data: list[float], vec_param: VecParam) -> None:
         width, class_ = vec_param
         uut = class_(*in_data[:width])
-        assert uut.x == in_data[0]  # Silly, but doesn't make us need to skip test if vec2
+        assert uut.x == in_data[0]
+        assert uut.y == in_data[1]
         if width >= 3:
             assert isinstance(uut, (vec3, vec4))
+            assert uut.z == in_data[2]
             xy = uut.xy
             assert isinstance(xy, vec2)
             assert xy == vec2(*in_data[:2])
         if width == 4:
             assert isinstance(uut, vec4)
+            assert uut.w == in_data[3]
             xyz = uut.xyz
             assert isinstance(xyz, vec3)
             assert xyz == vec3(*in_data[:3])

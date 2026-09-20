@@ -7,7 +7,7 @@ from typing import Final, Self
 
 from lib import our_gl
 from lib.model_v2 import ModelV2
-from lib.tgaimage import TGAColor, TGAColor_t, TGAImage
+from lib.tgaimage import Format, TGAColor, TGAColor_t, TGAImage
 from lib.trtypes import Triangle, vec2, vec3, vec4
 
 PLOT: Final[bool] = True
@@ -76,8 +76,8 @@ class PhongNormalMappingShader(our_gl.IShader):
         # Get the color from the "spec" file
         spec_color: TGAColor_t = (self.model.ext_color("spec", color_sample) / 3) * specular
 
-        if spec_color.bytespp == TGAImage.Format.GRAYSCALE:
-            spec_color = TGAColor(spec_color.b, spec_color.b, spec_color.b, bpp=TGAImage.Format.RGB)
+        if spec_color.bytespp == Format.GRAYSCALE:
+            spec_color = TGAColor(spec_color.b, spec_color.b, spec_color.b, bpp=Format.RGB)
 
         # Weighted diffuse should be 0..1
         weighted_diffuse = diffuse * self.diffuse_weight
@@ -110,7 +110,7 @@ def main() -> int:
         basename = Path(fname).name[:-4]
         try:
             logger.debug("Processing %s...", basename)
-            framebuffer = TGAImage(w=width, h=height, bpp=TGAImage.Format.RGB, c=TGAColor(127, 127, 127))
+            framebuffer = TGAImage(w=width, h=height, bpp=Format.RGB, c=TGAColor(127, 127, 127))
             our_gl.init_zbuffer(width, height)  # New zbuffer per image
             model = ModelV2.from_file(fname)
             shader = PhongNormalMappingShader(model, sun=sun, specular_shine=35)

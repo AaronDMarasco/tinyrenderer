@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Final, Self
 
 import numpy as np
+from numba import njit, prange
 
 from .trtypes import Matrix3f, Matrix4f, Triangle, ZBuffer, empty_matrix, vec2, vec3, vec4
 
@@ -98,6 +99,7 @@ def init_zbuffer(width: int, height: int, *, init_val: float | None = None) -> N
         z_buffer.fix_nan(init_val)
 
 
+@njit(parallel=True)
 def rasterize(
     clip: Triangle,
     shader: IShader,
@@ -131,8 +133,8 @@ def rasterize(
 
     ABC_invert_transpose = np.linalg.inv(ABC.T)  # ruff: ignore[non-lowercase-variable-in-function]
 
-    for x in range(bb_min_x, bb_max_x + 1):
-        for y in range(bb_min_y, bb_max_y + 1):
+    for x in prange(bb_min_x, bb_max_x + 1):
+        for y in prange(bb_min_y, bb_max_y + 1):
             # bc = barycentric coordinates of {x,y} w.r.t the triangle
             bc_screen = vec3.from_np(ABC_invert_transpose @ [x, y, 1])
             if any(v < 0 for v in bc_screen.array):
